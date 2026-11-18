@@ -118,6 +118,8 @@ Claudes tekniska val
   - Dåliga stavtag/skär (och tryck ur takt) kostar mer energi än bra.
   - Energi återhämtas i vila (utförsbackar, glid, på vallen), men långsammare än pulsen sjunker.
   - Vid noll energi kan man fortsätta åka, men skjuten blir svagare (lägre fart).
+  - (Justerat efter test 2) Energin ska räcka längre: förbrukningen är högre när man har mycket kvar och lägre när man har lite kvar, och vid 0 % är skjuten bara ca 20 % svagare, så man blir aldrig helt förslöad.
+- **Nedräkning 3-2-1-KÖR** vid start så att man förstår när man ska börja åka.
 - **Höjdkurva** för varvet under minikartan, med en prick för var man är.
 - **Vind i skyttet**: sidvind som varierar under loppet och flyttar träffen åt det håll det blåser. Flagga visar vinden (i kikarvyn och på vallen); ingen siffra, man läser flaggan som i verkligheten.
 
@@ -129,6 +131,6 @@ Till steg 3 (multiplayer)
 ## Status
 - Steg 1 (prototyp för en spelare) klar 2026-11-18: pendel, puls, åkning, liggande/stående skytte, straffrundor, tid, minikarta, ljud. Ett helt lopp med bra åkning och fullt skytte tar ca 4:15.
 - Repo: github.com/mtestberg/skidskytte (publikt). GitHub Pages: https://mtestberg.github.io/skidskytte/ (Maja slår på Pages själv i Settings → Pages; API:t är inte nåbart härifrån). Även en privat claude.ai-länk finns för test (gyro fungerar inte där).
-- 2026-11-18: feedback från första testet inbyggd: energi, högre puls, svårare liggande, vind + flaggor, höjdkurva, Sprint-namn. Simulerat lopp: perfekt åkning ≈ 4:00 med ~35 % energi kvar; bra ≈ 4:15 med ~20 %; slarvig tar slut på energi i varv 3.
+- 2026-11-18: feedback från första testet inbyggd: energi, högre puls, svårare liggande, vind + flaggor, höjdkurva, Sprint-namn. Efter energijusteringen (test 2): perfekt ≈ 4:00 med ~22 % kvar, bra ≈ 4:15 med ~16 %, glid i utför ~30 %, slarvig ≈ 5:20 med ~3 % (varv 3 ca 10 % långsammare, inte dubbelt så långsamt som innan). Nedräkning 3-2-1-KÖR vid start.
 - Nästa: Majas test av energi/vind → steg 2 (riktig bana från Le Grand-Bornand) → steg 3 (multiplayer med placering, lobby-nedräkning, prisutdelning).
 - Testhake: `window.__game.step(dt)` kör spelet utan rendering (används för automatiska lopp i headless Chrome).

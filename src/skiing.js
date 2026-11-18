@@ -97,10 +97,12 @@ export class Skiing {
 
   // Låg energi → svagare skjut (men aldrig stopp)
   strength() {
-    return 0.65 + 0.35 * Math.min(1, this.energy / 25);
+    return 0.8 + 0.2 * Math.min(1, this.energy / 20);
   }
 
+  // Mycket energi kvar → dyrare; lite kvar → billigare (man blir aldrig helt slut)
   spend(x) {
+    x *= 0.35 + 0.95 * this.energyFrac;
     this.energy = clamp(this.energy - x, 0, ENERGY_MAX);
   }
 
@@ -134,7 +136,7 @@ export class Skiing {
     this.pulse += 5.0 * (1 + up * 3.5) * (0.6 + 0.4 * power) * (1.5 - 0.8 * q) * this.pulseGain() * clamp((205 - this.pulse) / 55, 0.15, 1);
     this.pulse = Math.min(PULSE_MAX, this.pulse);
     // Energi: grundkostnad (mer i uppför) + extra för dålig träff
-    this.spend(0.52 * (1 + up * 4) * (0.7 + 0.3 * power) + (1 - q) * 1.0);
+    this.spend(0.72 * (1 + up * 4) * (0.7 + 0.3 * power) + (1 - q) * 1.0);
     this.lastPushAt = this.now;
     this.pushAnim = 1;
     this.pushSide *= -1;

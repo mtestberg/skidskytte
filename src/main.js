@@ -73,7 +73,8 @@ const ski = new Skiing();
 ski.onPush = (power) => { if (opts.sound) sfx.polePlant(power); };
 ski.onBeat = () => { if (opts.sound && state === 'ski') sfx.tick(); };
 
-let state = 'menu'; // menu | ski | arrive | range | penalty | done
+let state = 'menu'; // menu | countdown | ski | arrive | range | penalty | done
+let countdown = 0;
 let race, shooting = null, arriveTimer = 0, bannerTimer = 0;
 const camPos = new THREE.Vector3(), camLook = new THREE.Vector3();
 let camInit = false;
@@ -82,16 +83,42 @@ function newRace() {
   ski.reset();
   wind = new Wind();
   race = { lap: 1, s: 0, time: 0, penaltyLeft: 0, penaltyDist: 0, misses: [], splits: [], shootTime: [], shootStart: 0 };
-  state = 'ski';
-  ski.restart();
+  state = 'countdown';
+  countdown = 3.999;
   camInit = false;
   showUI();
-  banner('Kör!', 'Tryck båda knapparna när pendeln är i den gröna zonen', 2.2);
-  if (opts.sound) sfx.beep(true);
+  countBanner(3);
+  if (opts.sound) sfx.beep(false);
+}
+
+function countBanner(n) {
+  const b = $('banner');
+  b.classList.add('count');
+  b.innerHTML = `${n}<small>Tryck Stavtag + Skär samtidigt när pendeln är i den gröna zonen</small>`;
+  b.classList.remove('hidden');
+  bannerTimer = 0;
+}
+
+function tickCountdown(dt) {
+  const before = Math.ceil(countdown - 0.999);
+  countdown -= dt;
+  const after = Math.ceil(countdown - 0.999);
+  if (after !== before) {
+    if (after > 0) {
+      countBanner(after);
+      if (opts.sound) sfx.beep(false);
+    } else {
+      state = 'ski';
+      ski.restart();
+      banner('KÖR!', '', 1.0);
+      $('banner').classList.add('count');
+      if (opts.sound) sfx.beep(true);
+    }
+  }
 }
 
 function showUI() {
-  const skiing = state === 'ski' || state === 'penalty';
+  const skiing = state === 'ski' || state === 'penalty' || state === 'countdown';
   $('hud').classList.toggle('hidden', !(skiing || state === 'arrive'));
   $('ski-ui').classList.toggle('hidden', !skiing);
   $('shoot-ui').classList.toggle('hidden', state !== 'range');
@@ -103,6 +130,7 @@ function showUI() {
 
 function banner(text, small = '', t = 1.6) {
   const b = $('banner');
+  b.classList.remove('count');
   b.innerHTML = text + (small ? `<small>${small}</small>` : '');
   b.classList.remove('hidden');
   bannerTimer = t;
@@ -177,6 +205,7 @@ let heartPhase = 0;
 
 function update(dt) {
   if (state === 'menu' || state === 'done') return;
+  if (state === 'countdown') { tickCountdown(dt); return; }
   race.time += dt;
 
   if (state === 'ski') {
@@ -329,7 +358,7 @@ function frame(now) {
     return; // 3D är dold under kikaren – spara batteri
   }
   placeSkier(dt);
-  if (state === 'ski' || state === 'penalty') {
+  if (state === 'ski' || state === 'penalty' || state === 'countdown') {
     const c = $('pendulum');
     drawPendulum(c.getContext('2d'), c.width, c.height, ski);
     let mx, mz;

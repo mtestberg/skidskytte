@@ -82,6 +82,8 @@ html, body {
   background: rgba(8, 18, 30, 0.75); padding: 14px 26px; border-radius: 14px;
   font-size: 26px; font-weight: 800; text-align: center; pointer-events: none;
 }
+#banner.count { font-size: 64px; padding: 10px 34px; }
+#banner.count small { font-size: 14px; max-width: 320px; }
 #banner small { display: block; font-size: 15px; font-weight: 500; opacity: 0.85; margin-top: 4px; }
 
 .overlay {
