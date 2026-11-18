@@ -151,5 +151,12 @@ Till steg 3 (multiplayer)
   - Firebase-projekt: `skidskytte-6c8e1`, databas i europe-west1. Regler i `firebase-rules.json` (Maja har klistrat in dem i konsolen).
   - Firebase kan inte nås från Claudes arbetsyta (nätverket är spärrat), så multiplayer är testat med det lokala läget (två flikar via BroadcastChannel) i headless Chrome. Första riktiga testet över nätet görs av Maja på GitHub Pages.
   - Den privata claude.ai-länken kan inte nå Firebase (CSP) och kör därför lokalt läge.
-- Nästa: Majas test av multiplayer över nätet → steg 2 (riktig bana från Le Grand-Bornand).
+- **Steg 2 förberett 2026-11-18**: `tools/build-course.mjs` (GPX/GeoJSON + GeoTIFF i WGS84 eller Lambert-93 → `data/course.json`), `Course` laddar bandatan om den finns och faller annars tillbaka på den procedurella banan. Testat med en syntetisk bana. Arbetsytan kan inte ladda ner kartdata (Overpass, Copernicus m.fl. blockeras), så rådatan måste komma från Maja. Instruktioner i `data/README.md`. Stadion Sylvie Becaert: 45.9417, 6.4275 (IBU).
+
+### Parkerade frågor till Maja
+1. Fungerar multiplayer över nätet på GitHub Pages (två telefoner i samma rum)? Firebase har inte kunnat testas härifrån.
+2. Spåret till steg 2: världscupsbanan i Le Grand-Bornand byggs upp tillfälligt i byn och finns troligen inte i OpenStreetMap. Alternativ: (a) Maja ritar dambanans 2 km-slinga i gpx.studio efter IBU:s bankarta och exporterar GPX (med höjd), (b) Claude ritar en trovärdig 2 km-slinga runt stadion utifrån höjdmodellen (inte den officiella banan).
+3. Höjdmodell för terrängen runt spåret: Copernicus GLO-30 via OpenTopography (gratis konto) eller IGN RGE ALTI. Behövs för riktig terräng; utan den används GPX-höjder för spåret och påhittad terräng runt omkring.
+
+- Nästa: svar på de parkerade frågorna → steg 2 (riktig bana) → steg 4 (finputs).
 - Testhake: `window.__game.step(dt)` kör spelet utan rendering (används för automatiska lopp i headless Chrome).
