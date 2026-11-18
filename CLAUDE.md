@@ -122,7 +122,7 @@ Claudes tekniska val
 - **Nedräkning 3-2-1-KÖR** vid start så att man förstår när man ska börja åka.
 
 ### Feedback efter test 3 (2026-11-18)
-- **Lätt att komma igång**: de första 2–3 tagen från stillastående (start, efter vallen/straffrundan, eller om man stannat i en backe) har en träffzon som täcker nästan hela pendeln.
+- **Lätt att komma igång**: de första 2–3 tagen från stillastående (start, efter vallen/straffrundan, eller om man stannat i en backe) har en träffzon som täcker nästan hela pendeln. Hela den breda zonen ger Perfekt/Bra (inte bara mitten), och stavtag + skär behöver inte vara lika exakt samtidiga.
 - **Mindre energiförbrukning**, särskilt i början när energin är hög (förbrukningen planar ut i stället för att rasa).
 - **HUD**: hastigheten står överst (tid · fart · avstånd); varvet visas på minikartan.
 - **Dambanan 3 × 2 km** i stället för 3 × 2,5 km.

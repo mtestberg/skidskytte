@@ -117,11 +117,14 @@ export class Skiing {
     const p = this.cur.pole, e = this.cur.edge;
     if (p == null && e == null) return;
     const W = this.W;
-    const qp = p == null ? 0 : 1 - Math.abs(p) / W;
-    const qe = e == null ? 0 : 1 - Math.abs(e) / W;
+    // Under starthjälpen ger hela den breda zonen bra/perfekta tag
+    const assist = this.assist > 0;
+    const quality = (x) => (x == null ? 0 : assist ? 1 - 0.15 * (Math.abs(x) / W) : 1 - Math.abs(x) / W);
+    const qp = quality(p);
+    const qe = quality(e);
     let q, power;
     if (p != null && e != null) {
-      const sync = clamp(1 - Math.abs(p - e) / 0.12, 0.3, 1);
+      const sync = clamp(1 - Math.abs(p - e) / (assist ? 0.5 : 0.12), 0.3, 1);
       q = (qp + qe) / 2;
       power = q * (0.55 + 0.45 * sync);
     } else {
