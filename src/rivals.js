@@ -2,8 +2,8 @@
 // Live-positionen kommer 4 ggr/s (p = total sträcka, st = läge, pd = sträcka i läget),
 // så här jämnas rörelsen ut: farten skattas och positionen förutsägs mellan uppdateringarna.
 import * as THREE from 'three';
-import { LAP_LEN, TIME_SCALE, FINISH_LEN } from './course.js?v=202611182109';
-import { buildSkier, animateSkier } from './world.js?v=202611182109';
+import { LAP_LEN, TIME_SCALE, FINISH_LEN } from './course.js?v=202611182122';
+import { buildSkier, animateSkier } from './world.js?v=202611182122';
 
 function nameTag(name, color) {
   const c = document.createElement('canvas');
@@ -75,7 +75,7 @@ export class Rivals {
   place(r, c, dt) {
     const course = this.course;
     const sk = r.sk;
-    const moving = r.st === 's' || r.st === 'p' || r.st === 'm';
+    const moving = r.st === 's' || r.st === 'p' || r.st === 'm' || r.st === 't';
     if (moving) {
       if (Math.abs(r.target - r.disp) > 60) r.disp = r.target;  // långt efter (t.ex. fliken låg i bakgrunden): hoppa
       r.disp += r.vEst * dt;                                    // förutsäg
@@ -85,7 +85,12 @@ export class Rivals {
     // sidoförskjutning så att åkare inte ligger exakt i varandra
     const lat = ((r.slot % 2) ? 1 : -1) * (1.4 + 0.6 * Math.floor(r.slot / 2));
     let x, y, z, tx, tz, mode = 'ski', grade = 0;
-    if (r.st === 'p') {
+    if (r.st === 't' && course.transits?.[c.tk]) {
+      // på väg mellan vallen, straffrundan och banan
+      const path = course.transits[c.tk];
+      const q = path.at(Math.min(path.len, Math.max(0, r.disp)));
+      x = q.x; y = q.y; z = q.z; tx = q.tx; tz = q.tz;
+    } else if (r.st === 'p') {
       [x, y, z] = course.penaltyPoint(r.disp);
       [tx, tz] = course.penaltyTangent(r.disp);
     } else if (r.st === 'm') {
@@ -133,6 +138,7 @@ export class Rivals {
         const f = Math.min(1.8, Math.max(0.5, 0.8 + grade * 5)) * (r.st === 'm' ? 2 : 1);
         r.strokeT = 1 / f;
         r.push = 1; r.side *= -1;
+        if (this.onStroke) this.onStroke(c.id, r.st === 'm' ? 1 : 0.7);
       }
     }
     r.push = Math.max(0, r.push - dt * 2.2);

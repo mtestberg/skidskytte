@@ -1,19 +1,19 @@
 import * as THREE from 'three';
-import { Course, loadCourseData, LAP_LEN, LAPS, PENALTY_LEN, TIME_SCALE, FINISH_LEN, JOIN_S } from './course.js?v=202611182109';
-import { Skiing } from './skiing.js?v=202611182109';
-import { Shooting, AIM_LIMIT } from './shooting.js?v=202611182109';
-import { buildWorld, buildSkier, animateSkier, updateFlags, SUN_DIR } from './world.js?v=202611182109';
-import { createSnow } from './scenery.js?v=202611182109';
-import { drawPendulum, Minimap, Profile, drawFlag, fmtTime } from './hud.js?v=202611182109';
-import { Wind } from './wind.js?v=202611182109';
-import { connect } from './net.js?v=202611182109';
-import { Room, makeCode, makeId, standings, GhostRecorder, decodeGhost, ghostAt, COLOR_CSS } from './mp.js?v=202611182109';
-import { Ceremony } from './ceremony.js?v=202611182109';
-import { FORMATS, FORMAT_IDS, getFormat, boardPath, storeKey, kmText } from './formats.js?v=202611182109';
-import { COURSES, COURSE_IDS, getCourse } from './courses.js?v=202611182109';
-import { Rivals } from './rivals.js?v=202611182109';
+import { Course, loadCourseData, LAP_LEN, LAPS, PENALTY_LEN, TIME_SCALE, FINISH_LEN, JOIN_S } from './course.js?v=202611182122';
+import { Skiing } from './skiing.js?v=202611182122';
+import { Shooting, AIM_LIMIT } from './shooting.js?v=202611182122';
+import { buildWorld, buildSkier, animateSkier, updateFlags, SUN_DIR } from './world.js?v=202611182122';
+import { createSnow } from './scenery.js?v=202611182122';
+import { drawPendulum, Minimap, Profile, drawFlag, fmtTime } from './hud.js?v=202611182122';
+import { Wind } from './wind.js?v=202611182122';
+import { connect } from './net.js?v=202611182122';
+import { Room, makeCode, makeId, standings, GhostRecorder, decodeGhost, ghostAt, COLOR_CSS } from './mp.js?v=202611182122';
+import { Ceremony } from './ceremony.js?v=202611182122';
+import { FORMATS, FORMAT_IDS, getFormat, boardPath, storeKey, kmText } from './formats.js?v=202611182122';
+import { COURSES, COURSE_IDS, getCourse } from './courses.js?v=202611182122';
+import { Rivals } from './rivals.js?v=202611182122';
 import qrcode from '../vendor/qrcode.js';
-import * as sfx from './audio.js?v=202611182109';
+import * as sfx from './audio.js?v=202611182122';
 
 const $ = (id) => document.getElementById(id);
 window.addEventListener('error', (e) => { const el = $('err'); el.textContent = 'Fel: ' + e.message; el.classList.remove('hidden'); });
@@ -74,6 +74,8 @@ async function buildCourse(cfg) {
   if (rivals) { rivals.clear(); rivals.course = course; }
 }
 var rivals = new Rivals(scene, null);
+// I tittarläget hörs stavtagen från åkaren som filmas
+rivals.onStroke = (id, power) => { if (opts.sound && mode === 'watch' && state === 'watch' && watch?.focus === id) sfx.polePlant(power, true, true); };
 await buildCourse(courseCfg);
 let wind = new Wind();
 const skier = buildSkier();
@@ -279,7 +281,8 @@ function leaveRange() {
 }
 
 function startTransit(path, then, label) {
-  transit = { path, d: 0, then, label };
+  const key = Object.keys(course.transits).find((k) => course.transits[k] === path);
+  transit = { path, d: 0, then, label, key };
   state = 'transit';
 }
 
@@ -402,7 +405,7 @@ function competitors() {
         id: p.id, name: p.name, color: p.color,
         done: p.status === 'done', time: p.result?.time ?? 0,
         progress: p.live?.p ?? 0, st: p.live?.st ?? 's', pd: p.live?.pd ?? 0,
-        sh: p.live?.sh ?? '', k: p.live?.k ?? 'L', sr: p.live?.sr ?? '', misses: p.result?.misses,
+        sh: p.live?.sh ?? '', k: p.live?.k ?? 'L', sr: p.live?.sr ?? '', tk: p.live?.tk, misses: p.result?.misses,
       }));
   }
   if (!race) return [];
@@ -413,6 +416,7 @@ function competitors() {
 }
 
 function posOf(c) {
+  if (c.st === 't' && course.transits[c.tk]) { const q = course.transits[c.tk].at(c.pd); return { x: q.x, z: q.z }; }
   if (c.st === 'p') { const p = course.penaltyPoint(c.pd); return { x: p[0], z: p[2] }; }
   if (c.st === 'm') { const p = course.finishPoint(c.pd); return { x: p[0], z: p[2] }; }
   if (c.st === 'r') return { x: course.rangePos[0], z: course.rangePos[1] };
@@ -638,7 +642,10 @@ function update(dt) {
     liveTimer += dt;
     if (liveTimer > 0.25) {
       liveTimer = 0;
-      room.sendLive({ p: Math.round(myProgress()), st: myStCode(), pd: Math.round(mySubDist()), rid: raceId, ...shootLive() });
+      room.sendLive(state === 'transit' && transit
+        // på väg mellan vallen, straffrundan och banan: egen kod så att tittare/andra ser var man är
+        ? { p: Math.round(myProgress()), st: 't', pd: Math.round(transit.d), tk: transit.key, rid: raceId, ...shootLive() }
+        : { p: Math.round(myProgress()), st: myStCode(), pd: Math.round(mySubDist()), rid: raceId, ...shootLive() });
     }
   }
 
@@ -839,6 +846,7 @@ let last = performance.now();
 let straightCheer = 0;
 function updateAmbience() {
   if (!opts.sound) return;
+  if (state === 'watch' || state === 'watchwait') return watchAmbience();
   const skiing = race && (state === 'ski' || state === 'penalty' || state === 'transit') && ski.fallen <= 0;
   sfx.setGlide(ski.v, !!skiing);
   let crowd = 0;
@@ -1012,6 +1020,7 @@ function statusText(c) {
   const lap = Math.min(fmt.laps, Math.floor(c.progress / track.n) + 1);
   if (c.st === 'r') return 'Vallen';
   if (c.st === 'p') return 'Straffrunda';
+  if (c.st === 't') return c.tk === 'toPenalty' ? 'Till straffrundan' : 'Ut på banan';
   if (c.st === 'm') return 'Upploppet';
   return `Varv ${lap}/${fmt.laps}`;
 }
@@ -1081,6 +1090,16 @@ function frameWatch(dt, now) {
     sun.position.set(p.x + SUN_DIR.x * 120, p.y + SUN_DIR.y * 120, p.z + SUN_DIR.z * 120);
     sun.target.position.copy(p);
   }
+  // ---- ljudbild för den som filmas ----
+  if (fc && fr) {
+    const p = fr.sk.root.position;
+    const lapPos = ((fc.progress % track.n) + track.n) % track.n;
+    watch.audio = {
+      st: fc.st, done: fc.done, v: fr.vEst / TIME_SCALE, skiing: !fc.done && fc.st !== 'r' && fr.vEst > 4,
+      dist: Math.hypot(p.x - course.stadium[0], p.z - course.stadium[1]),
+      lapPos, toStadium: track.n - lapPos, lastLap: Math.floor(fc.progress / track.n) + 1 >= fmt.laps,
+    };
+  } else watch.audio = null;
   // ---- ljud från fokusåkarens skytte ----
   if (fc && opts.sound) {
     const prev = watch.lastShots.get(fc.id) ?? '';
@@ -1116,6 +1135,26 @@ function frameWatch(dt, now) {
   world.setClock(fmtTime(clock));
   snow(camera, dt, wind.at(clock));
   renderer.render(scene, camera);
+}
+
+// Ljudbilden i tittarläget följer åkaren som filmas: glid, stavtag, publik och arenajubel
+// efter var hen är (samma nivåer som för åkaren själv).
+function watchAmbience() {
+  const a = watch?.audio;
+  if (state === 'watchwait' || !a) { sfx.setGlide(0, false); sfx.setCrowd(0.6); sfx.setArenaCheer(0.25); return; }
+  sfx.setGlide(a.v, a.skiing);
+  let crowd, arena;
+  if (a.done) { crowd = 0.9; arena = 0.7; }
+  else if (a.st === 'r') { crowd = 0.75; arena = 0.12; }
+  else if (a.st === 'p' || a.st === 't') { crowd = 0.8; arena = 0.3; }
+  else if (a.st === 'm') { crowd = 1.15; arena = 0.9; }
+  else {
+    crowd = Math.max(0, Math.min(1, (260 - a.dist) / 220));
+    const coming = Math.max(0, 1 - a.toStadium / 450), leaving = Math.max(0, 1 - a.lapPos / 180);
+    arena = Math.max(coming * coming * (a.lastLap ? 1 : 0.75), leaving * 0.45);
+  }
+  sfx.setCrowd(crowd);
+  sfx.setArenaCheer(arena);
 }
 
 function setFocus(id, until) {
@@ -1434,7 +1473,7 @@ requestAnimationFrame(frame);
 window.__game = {
   get state() { return state; }, get race() { return race; }, ski, get course() { return course; }, rivals, get shooting() { return shooting; },
   get room() { return room; }, get db() { return db; }, get ghosts() { return ghosts; }, me,
-  get ceremony() { return ceremony; }, camera, renderer, get world() { return world; }, useLocalDb: async () => { const m = await import('./net.js?v=202611182109'); db = await m.connectLocal(); },
+  get ceremony() { return ceremony; }, camera, renderer, get world() { return world; }, useLocalDb: async () => { const m = await import('./net.js?v=202611182122'); db = await m.connectLocal(); },
   step: (dt) => update(dt), start: newRace,
   debugCeremony: (list) => { state = 'ceremony'; ceremony.start(list); showUI(); },
 };

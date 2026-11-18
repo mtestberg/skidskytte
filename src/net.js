@@ -7,7 +7,7 @@
 // LocalDB:    samma gränssnitt mellan flikar på samma enhet (BroadcastChannel).
 //             Används när Firebase inte är konfigurerat, och i automatiska tester.
 
-import { FIREBASE_CONFIG } from './config.js?v=202611182109';
+import { FIREBASE_CONFIG } from './config.js?v=202611182122';
 
 // Platshållare som byts mot serverns klocka (Firebase serverTimestamp)
 export const SERVER_TIME = '__server_time__';
