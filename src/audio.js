@@ -96,16 +96,26 @@ export function gasp() {
 }
 
 // Stavtag: stavspetsarna i snön ("tsk") + skärets "schhh"
+// Tydligt hörbart även i mobilhögtalare (mycket mellan-/diskantinnehåll)
 export function polePlant(power, pole = true, edge = true) {
+  const p = 0.6 + 0.4 * power;
   if (pole) {
-    noise(0.05, 'highpass', 3200, 0.9, 0.12 + 0.12 * power);
-    tone(190, 0.07, 0.12 + 0.1 * power, 'triangle', 90, 0.0);
+    // stavspetsarna i snön: skarpt "tjack" + kort duns
+    noise(0.06, 'bandpass', 2600, 1.2, 0.75 * p, 0.001);
+    noise(0.12, 'bandpass', 900, 0.9, 0.45 * p, 0.002);
+    tone(150, 0.09, 0.35 * p, 'triangle', 80);
   }
-  if (edge) noise(0.28, 'bandpass', 700, 0.5, 0.08 + 0.1 * power, 0.03);
+  // skäret: skidan som trycks ifrån i snön, "schhhk"
+  if (edge) {
+    const n = noise(0.32, 'bandpass', 1500, 0.7, 0.42 * p, 0.03);
+    if (n) n.f.frequency.exponentialRampToValueAtTime(700, n.t + 0.3);
+  }
 }
 
+// Pendelns taktslag: kort träkloss-klick
 export function tick() {
-  tone(1800, 0.03, 0.04, 'sine');
+  tone(1250, 0.045, 0.22, 'square', 1100);
+  tone(2500, 0.025, 0.12, 'sine');
 }
 
 export function beep(high = false) {

@@ -78,7 +78,7 @@ window.addEventListener('resize', resize);
 // ---------- Spelstatus ----------
 const ski = new Skiing();
 ski.onPush = (power) => { if (opts.sound) sfx.polePlant(power, ski.lastPole, ski.lastEdge); };
-ski.onBeat = () => { if (opts.sound && state === 'ski') sfx.tick(); };
+ski.onBeat = () => { if (opts.sound && (state === 'ski' || state === 'penalty')) sfx.tick(); };
 ski.onFall = () => {
   skier.fallSide = Math.random() < 0.5 ? -1 : 1;
   if (opts.sound) { sfx.fall(); }
