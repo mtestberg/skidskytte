@@ -283,7 +283,7 @@ export function setCrowd(level) {
 // Jubel: inspelad publik om den finns (kortas/tonas efter dur), annars syntetiska röster + applåd
 export function cheer(strength = 1, dur = 2.2) {
   if (!ac) return;
-  if (playSample('cheer', Math.min(1, 0.35 + 0.45 * strength), 0.05, dur + 0.6, Math.random() * 0.4)) return;
+  if (playSample('cheer', Math.min(1.3, 0.5 + 0.6 * strength), 0.05, Math.max(2.2, dur + 1), 0.5 + Math.random() * 0.8)) return;
   const n = Math.min(34, Math.round(14 + 18 * strength));
   for (let i = 0; i < n; i++) {
     const vow = Math.random() < 0.55 ? 'e' : 'a';
@@ -317,16 +317,44 @@ function playSample(name, gain = 1, rateJitter = 0.06, dur = null, offset = 0) {
   src.playbackRate.value = 1 + (Math.random() * 2 - 1) * rateJitter; // lite variation varje gång
   const g = ac.createGain();
   g.gain.setValueAtTime(gain, t);
+  src.connect(g).connect(master);
+  src.start(t, offset);              // start måste komma före stop
   if (dur != null && dur < b.duration - offset) {
     g.gain.setValueAtTime(gain, t + dur * 0.6);
     g.gain.exponentialRampToValueAtTime(0.0005, t + dur);
     src.stop(t + dur + 0.05);
   }
-  src.connect(g).connect(master);
-  src.start(t, offset);
   return true;
 }
 export const hasSample = (name) => !!samples[name];
+
+// Arenajubel: jubelinspelningen i loop, volymen styrs av hur nära arenan/läktaren man är.
+// Två loopar förskjutna i tid så att skarven inte hörs.
+let arena = null;
+export function setArenaCheer(level) {
+  const b = samples.cheer;
+  if (!ac || !b) return;
+  if (!arena) {
+    const g = ac.createGain();
+    g.gain.value = 0;
+    g.connect(master);
+    const mk = (off) => {
+      const src = ac.createBufferSource();
+      src.buffer = b;
+      src.loop = true;
+      src.loopStart = 0.4;
+      src.loopEnd = b.duration - 0.2;
+      const lg = ac.createGain();
+      lg.gain.value = 0.6;
+      src.connect(lg).connect(g);
+      src.start(ac.currentTime, off);
+    };
+    mk(0.4);
+    mk(0.4 + (b.duration - 0.6) / 2);
+    arena = { g };
+  }
+  arena.g.gain.setTargetAtTime(Math.max(0, level) * 1.1, ac.currentTime, 0.6);
+}
 
 // "Åååh" vid miss: inspelad publik om den finns, annars syntetiska röster på o som glider nedåt
 export function ooh() {

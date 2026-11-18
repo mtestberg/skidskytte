@@ -690,6 +690,23 @@ function updateAmbience() {
     }
   } else straightCheer = 0;
   sfx.setCrowd(crowd);
+  sfx.setArenaCheer(arenaCheerLevel());
+}
+
+// Jubel från arenan: fullt vid starten, tonar bort när man åker ut, och växer
+// successivt när man närmar sig stadion och läktaren igen.
+function arenaCheerLevel() {
+  if (!race || state === 'menu' || state === 'lobby') return 0;
+  if (state === 'countdown') return 0.55;
+  if (state === 'done' || state === 'ceremony') return 0.7;
+  if (state === 'arrive' || state === 'range') return 0.12;
+  if (state === 'penalty') return 0.3;
+  if (race.onStraight) return 0.75 + 0.35 * (race.finishDist / FINISH_LEN); // förbi läktaren mot mål
+  const toStadium = LAP_LEN - race.s;          // meter kvar till stadion
+  const coming = Math.max(0, 1 - toStadium / 450);   // börjar ca 450 m innan
+  const leaving = Math.max(0, 1 - race.s / 180);     // tonar bort efter starten/vallen
+  const sinceStart = race.time < 6 && race.lap === 1 ? 1 - race.time / 6 : 0;
+  return Math.max(coming * coming * (race.lap === LAPS ? 1 : 0.75), leaving * 0.45, sinceStart * 0.8);
 }
 
 function frame(now) {
