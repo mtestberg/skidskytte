@@ -258,11 +258,40 @@ function whistle(delay) {
   o.start(t); o.stop(t + 0.65);
 }
 
-// level 0…1: sorl-golv + slumpade röster ("babbel") och enstaka klapp/visslingar
+// Inspelat stadionsorl i loop (två förskjutna loopar så att skarven inte hörs)
+let murmur = null;
+function setMurmur(level) {
+  const b = samples.crowd;
+  if (!b) return false;
+  if (!murmur) {
+    const g = ac.createGain();
+    g.gain.value = 0;
+    g.connect(master);
+    const mk = (off, gain) => {
+      const src = ac.createBufferSource();
+      src.buffer = b; src.loop = true;
+      const lg = ac.createGain(); lg.gain.value = gain;
+      src.connect(lg).connect(g);
+      src.start(ac.currentTime, off);
+    };
+    mk(0, 0.7);
+    mk(b.duration / 2, 0.45);
+    murmur = { g };
+  }
+  murmur.g.gain.setTargetAtTime(level * 0.4, ac.currentTime, 0.6);
+  return true;
+}
+
+// level 0…1: inspelat sorl om det finns, annars syntetiskt (brusgolv + babbel + klapp/visslingar)
 let crowdLevel = 0, lastBabble = 0;
 export function setCrowd(level) {
   if (!ensureLoops()) return;
   crowdLevel = level;
+  if (setMurmur(level)) {
+    ramp(loops.crowdA.g.gain, 0, 0.5);
+    ramp(loops.crowdB.g.gain, 0, 0.5);
+    return;
+  }
   ramp(loops.crowdA.g.gain, level * 0.07, 0.5);
   ramp(loops.crowdB.g.gain, level * 0.035, 0.5);
   const now = ac.currentTime;
@@ -296,7 +325,7 @@ export function cheer(strength = 1, dur = 2.2) {
 
 // ---------- Inspelade ljud (assets/sfx) ----------
 // Laddas när ljudet startas; saknas en fil används det syntetiska ljudet i stället.
-const SAMPLE_FILES = { ooh: 'assets/sfx/ooh.mp3', cheer: 'assets/sfx/cheer.mp3' };
+const SAMPLE_FILES = { ooh: 'assets/sfx/ooh.mp3', cheer: 'assets/sfx/cheer.mp3', crowd: 'assets/sfx/crowd.mp3' };
 const samples = {};
 function loadSamples() {
   for (const [name, url] of Object.entries(SAMPLE_FILES)) {
