@@ -96,10 +96,12 @@ export function gasp() {
 }
 
 // Stavtag: stavspetsarna i snön ("tsk") + skärets "schhh"
-export function polePlant(power) {
-  noise(0.05, 'highpass', 3200, 0.9, 0.12 + 0.12 * power);
-  tone(190, 0.07, 0.12 + 0.1 * power, 'triangle', 90, 0.0);
-  noise(0.28, 'bandpass', 700, 0.5, 0.08 + 0.1 * power, 0.03);
+export function polePlant(power, pole = true, edge = true) {
+  if (pole) {
+    noise(0.05, 'highpass', 3200, 0.9, 0.12 + 0.12 * power);
+    tone(190, 0.07, 0.12 + 0.1 * power, 'triangle', 90, 0.0);
+  }
+  if (edge) noise(0.28, 'bandpass', 700, 0.5, 0.08 + 0.1 * power, 0.03);
 }
 
 export function tick() {
@@ -406,7 +408,7 @@ export function bell() {
 export function fall() {
   noise(0.35, 'lowpass', 400, 0.7, 0.6, 0.005);
   tone(80, 0.3, 0.5, 'sine', 40);
-  setTimeout(ooh, 150);
+  setTimeout(() => ooh(), 120); // publiken: "åååh"
 }
 
 // ---------- För förhandslyssning/tester: rendera i en OfflineAudioContext ----------

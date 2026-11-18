@@ -153,7 +153,10 @@ export class Skiing {
     this.spend(0.9 * (1 + up * 4) * (0.7 + 0.3 * power) + (1 - q) * 1.0);
     this.lastPushAt = this.now;
     this.pushAnim = 1;
-    this.pushSide *= -1;
+    // vilka knappar som togs: styr animationen (bara stavtag, bara skär, eller båda)
+    this.lastPole = p != null;
+    this.lastEdge = e != null;
+    if (this.lastEdge) this.pushSide *= -1;
     this.lastPower = power;
     this.stats.pushes++;
     if (this.assist > 0) this.assist--;

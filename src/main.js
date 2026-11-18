@@ -77,11 +77,11 @@ window.addEventListener('resize', resize);
 
 // ---------- Spelstatus ----------
 const ski = new Skiing();
-ski.onPush = (power) => { if (opts.sound) sfx.polePlant(power); };
+ski.onPush = (power) => { if (opts.sound) sfx.polePlant(power, ski.lastPole, ski.lastEdge); };
 ski.onBeat = () => { if (opts.sound && state === 'ski') sfx.tick(); };
 ski.onFall = () => {
   skier.fallSide = Math.random() < 0.5 ? -1 : 1;
-  if (opts.sound) sfx.fall();
+  if (opts.sound) { sfx.fall(); }
   banner('Vurpa!', 'Tre tag i rad utanför pendeln – res dig och börja om', 1.6);
 };
 
@@ -602,6 +602,8 @@ function placeSkier(dt) {
   skier.root.rotation.y = Math.atan2(tx, tz);
   const grade = state === 'ski' && !race.onStraight ? course.gradeAt(race.s) : 0;
   if (ski.fallen > 0 && (state === 'ski' || state === 'penalty')) { mode = 'fall'; skier.fallT = 2.6 - ski.fallen; }
+  skier.poleOn = ski.lastPole !== false;
+  skier.edgeOn = ski.lastEdge !== false;
   animateSkier(skier, dt, ski.pushAnim, ski.pushSide, state === 'menu' || state === 'lobby' ? 0 : ski.v, grade, mode);
 
   // Kamera bakom och ovanför

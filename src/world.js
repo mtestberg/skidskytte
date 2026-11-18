@@ -460,16 +460,18 @@ export function animateSkier(sk, dt, push, side, v, grade, mode = 'ski') {
     return;
   }
   sk.torso.rotation.y = 0;
-  // Stavtag: armar fram → drag bakåt; bålen fälls
+  // Stavtag: armar fram → drag bakåt; bålen fälls (bara om stavtag-knappen togs)
   const p = push; // 1 precis efter skjut
-  const armSwing = p > 0 ? -1.4 + (1 - p) * 2.0 : -1.4 + Math.min(1, 0.5) * 0.4;
-  const lean = 0.25 + Math.max(0, grade) * 1.5 + p * 0.35 * crouch;
+  const pp = sk.poleOn === false ? 0 : p;   // stavtag
+  const pe = sk.edgeOn === false ? 0 : p;   // skär
+  const armSwing = pp > 0 ? -1.4 + (1 - pp) * 2.0 : -1.4 + Math.min(1, 0.5) * 0.4;
+  const lean = 0.25 + Math.max(0, grade) * 1.5 + pp * 0.35 * crouch;
   sk.torso.rotation.x = lean;
-  sk.body.position.y = -p * 0.1;
+  sk.body.position.y = -Math.max(pp, pe * 0.6) * 0.1;
   for (const a of sk.arms) {
     a.sh.rotation.x = armSwing;
     a.sh.rotation.z = a.side * 0.12;
-    a.el.rotation.x = -0.35 + p * 0.25;
+    a.el.rotation.x = -0.35 + pp * 0.25;
   }
   // Skär: skidorna parallella, det skärande benet vinklas utåt under skjutet
   // och foten förs ut åt sidan, så att skidorna aldrig korsas.
@@ -477,18 +479,18 @@ export function animateSkier(sk, dt, push, side, v, grade, mode = 'ski') {
   const vMax = 0.22 + Math.max(0, grade) * 0.9;
   for (const l of sk.legs) {
     const active = l.side === side;
-    const a = skate && active ? vMax * p : 0;
+    const a = skate && active ? vMax * pe : 0;
     l.hip.rotation.y = 0;
     l.ski.rotation.y = l.side * a;
-    l.hip.rotation.z = l.side * (active ? 0.24 * p : 0.035);
-    l.hip.rotation.x = -0.25 - (active ? 0 : p * 0.2);
-    l.knee.rotation.x = 0.45 + (active ? p * 0.25 : 0);
-    l.ski.position.y = -0.515 + (active ? 0 : p * 0.12);
+    l.hip.rotation.z = l.side * (active ? 0.24 * pe : 0.035);
+    l.hip.rotation.x = -0.25 - (active ? 0 : pe * 0.2);
+    l.knee.rotation.x = 0.45 + (active ? pe * 0.25 : 0);
+    l.ski.position.y = -0.515 + (active ? 0 : pe * 0.12);
   }
   levelSkis(sk);
   // viktöverföring: kroppen glider över mot glidbenet
-  sk.body.position.x = skate ? side * 0.07 * (0.4 + 0.6 * p) : 0;
-  sk.body.rotation.z = skate ? -side * 0.06 * p : 0;
+  sk.body.position.x = skate ? side * 0.07 * (0.4 + 0.6 * pe) : 0;
+  sk.body.rotation.z = skate ? -side * 0.06 * pe : 0;
   // tuck i utförsbackar utan skjut
   if (grade < -0.05 && p < 0.05) {
     sk.torso.rotation.x = 0.9;
