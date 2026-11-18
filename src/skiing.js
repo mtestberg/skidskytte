@@ -80,13 +80,25 @@ export class Skiing {
   press(which) {
     if (this.fallen > 0) return; // ligger i snön
     const t = this.now;
-    if (!this.resolved && t - this.lastBeat <= this.W && this.cur[which] == null) {
+    const inCur = !this.resolved && t - this.lastBeat <= this.W;
+    const inNxt = this.nextBeat - t <= this.W;
+    if (inCur && this.cur[which] == null) {
       this.cur[which] = t - this.lastBeat;
       this.wildStreak = 0;
       return;
     }
-    if (this.nextBeat - t <= this.W && this.nxt[which] == null) {
+    if (inNxt && this.nxt[which] == null) {
       this.nxt[which] = t - this.nextBeat;
+      this.wildStreak = 0;
+      return;
+    }
+    // Samma knapp en gång till inom den gröna zonen: räknas inte som ur takt
+    if (inCur || inNxt) return;
+    // Under starthjälpen är hela pendeln grön: varje tryck godtas och räknas till närmaste slag
+    if (this.assist > 0) {
+      const toNext = this.nextBeat - t, sinceLast = t - this.lastBeat;
+      if (!this.resolved && sinceLast <= toNext && this.cur[which] == null) this.cur[which] = Math.min(sinceLast, this.W);
+      else if (this.nxt[which] == null) this.nxt[which] = -Math.min(toNext, this.W);
       this.wildStreak = 0;
       return;
     }
@@ -248,6 +260,6 @@ export class Skiing {
     this.nextBeat = this.now + 0.9;
     this.cur = {};
     this.nxt = {};
-    this.resolved = true;
+    this.resolved = false; // pendeln står i mitten (grönt) – ett tryck direkt ska godtas
   }
 }
