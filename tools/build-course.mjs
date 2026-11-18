@@ -12,6 +12,7 @@
 //   --start  lat,lon för stadion/skjutvallen. Slingan börjar på spårpunkten närmast denna.
 //   --name   Bannamn som visas i spelet.
 //   --out    Utfil (standard data/course.json).
+//   --maxgrade  Gör partier brantare än detta flackare, t.ex. 0.15.
 //
 // Rådatan (raw/) checkas inte in, bara den bearbetade data/course.json.
 
@@ -133,6 +134,27 @@ if (dem) {
       for (let d = -w; d <= w; d++) sum += e[(i + d + n) % n];
       out[i][2] = sum / (2 * w + 1);
     }
+  }
+}
+// --maxgrade: gör de brantaste partierna flackare (spåret skärs in i/bankas upp mot terrängen)
+if (args.maxgrade) {
+  const mg = +args.maxgrade, n = out.length, lim = mg * STEP * 5; // över 10 m
+  for (let it = 0; it < 4000; it++) {
+    let changed = false;
+    for (let i = 0; i < n; i++) {
+      const j = (i + 5) % n;
+      const d = out[j][2] - out[i][2];
+      if (Math.abs(d) > lim) {
+        const fix = (Math.abs(d) - lim) / 2 * Math.sign(d) * 0.5;
+        out[i][2] += fix; out[j][2] -= fix; changed = true;
+      }
+    }
+    if (!changed) break;
+  }
+  // lätt utjämning efteråt
+  for (let pass = 0; pass < 2; pass++) {
+    const e = out.map((p) => p[2]);
+    for (let i = 0; i < n; i++) { let sum = 0; for (let d = -5; d <= 5; d++) sum += e[(i + d + n) % n]; out[i][2] = sum / 11; }
   }
 }
 // Centrera slingan kring origo och gör höjden relativ startpunkten
