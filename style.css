@@ -160,3 +160,16 @@ button.link { background: none; border: 0; color: #9fd0ff; font-size: 15px; padd
 /* Andan slut: mätaren blir röd och knappen grå tills man andats en stund */
 #s-breath.empty { background: #ff7b6b !important; }
 #btn-breath.blocked { opacity: 0.5; }
+
+/* Skytteträning */
+#rp-bar {
+  position: absolute; top: max(8px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%);
+  display: flex; gap: 6px; align-items: center; z-index: 3;
+}
+#rp-bar .chip {
+  font: inherit; font-size: 13px; color: #fff; background: rgba(8,18,30,0.72);
+  border: 1px solid rgba(255,255,255,0.25); border-radius: 999px; padding: 7px 12px; white-space: nowrap;
+}
+#rp-bar button.chip:active { background: rgba(124,252,154,0.35); }
+#rp-bar .stat { border-color: transparent; }
+#shoot-ui.practice .shoot-top { top: max(48px, calc(env(safe-area-inset-top) + 40px)); }

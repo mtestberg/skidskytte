@@ -57,6 +57,13 @@
     <button id="btn-breath" class="bigbtn">Håll andan</button>
     <button id="btn-fire" class="bigbtn fire">Skjut</button>
     <div id="s-hint">Dra för att sikta</div>
+    <!-- Skytteträning: byt ställning, välj puls, avsluta -->
+    <div id="rp-bar" class="hidden">
+      <button id="rp-kind" class="chip">Byt till stående</button>
+      <button id="rp-pulse" class="chip">Puls: lugn</button>
+      <span id="rp-stats" class="chip stat">Serie 1</span>
+      <button id="rp-quit" class="chip">Avsluta</button>
+    </div>
   </div>
 
   <div id="banner" class="hidden"></div>
@@ -70,7 +77,8 @@
       <div id="menu-main">
         <div class="row">
           <button id="btn-start" class="primary">Träna</button>
-          <button id="btn-mp" class="primary alt">Multiplayer</button>
+          <button id="btn-mp" class="primary alt">Tävla</button>
+          <button id="btn-range" class="primary alt">Skytteträning</button>
         </div>
         <button id="btn-board" class="link">Topplista</button>
       </div>
@@ -93,6 +101,7 @@
         <p><b>Åkning:</b> Tryck <b>Stavtag</b> och <b>Skär</b> samtidigt när pendeln passerar den gröna zonen. Bara en knapp ger sämre fart. Trycker du fel blir takten långsammare och pulsen stiger. Släpp knapparna i utförsbackarna för att glida och sänka pulsen inför vallen.</p>
         <p><b>Energi:</b> räcker för hela loppet om du är taktisk. Varje tag kostar, dåliga tag kostar mer. Låg energi gör att pulsen stiger snabbare och skjuten blir svagare. Energin kommer tillbaka långsamt när du glider, åker utför eller vilar på vallen. Höjdkurvan under kartan visar vad som väntar.</p>
         <p><b>Skytte:</b> Dra för att sikta. Håll in <b>Håll andan</b> (max ca 4 s) för stillare sikte, tryck sedan <b>Skjut</b>. Håller du för länge blir du andfådd. Läs vindflaggan: kulan driver åt det håll det blåser, så sikta lite mot vinden. Klockan går hela tiden. Varje miss ger en straffrunda på 150 m.</p>
+        <p><b>Skytteträning:</b> Du hamnar direkt på vallen och skjuter så många serier du vill. Byt mellan liggande och stående, och välj med vilken puls varje serie börjar (lugn, efter åkning eller maxpuls).</p>
         <p><b>Dator:</b> J = stavtag, K = skär (mellanslag = båda). Skytte: musen drar, mellanslag = håll andan, Enter = skjut.</p>
       </details>
       <p id="best" class="sub"></p>

@@ -172,6 +172,8 @@ function showUI() {
   $('hud').classList.toggle('hidden', !(skiing || state === 'arrive'));
   $('ski-ui').classList.toggle('hidden', !skiing);
   $('shoot-ui').classList.toggle('hidden', state !== 'range');
+  $('rp-bar').classList.toggle('hidden', mode !== 'practice');
+  $('shoot-ui').classList.toggle('practice', mode === 'practice');
   $('menu').classList.toggle('hidden', state !== 'menu');
   $('result').classList.toggle('hidden', state !== 'done');
   $('lobby').classList.toggle('hidden', state !== 'lobby');
@@ -595,7 +597,7 @@ function update(dt) {
     }
     if (shooting.events.length) renderShots();
     shooting.events.length = 0;
-    if (shooting.done) leaveRange();
+    if (shooting.done) { if (mode === 'practice') nextSeries(); else leaveRange(); }
   }
 
   if (bannerTimer > 0) {
@@ -961,6 +963,64 @@ async function prepare() {
     await screen.orientation?.lock?.('landscape');
   } catch { /* stöds inte överallt (t.ex. iPhone) */ }
 }
+
+// ---------- Skytteträning ----------
+// Direkt till vallen, så många serier man vill. Varje serie börjar med vald puls
+// och pulsen sjunker sedan i vila som på riktigt. Klockan visar seriens tid.
+const RP_PULSES = [[78, 'lugn'], [140, 'efter åkning'], [170, 'max']];
+const practice = { kind: 'prone', pulseIdx: 0, series: 0, hits: 0, shots: 0, best: null };
+
+function rpStats() {
+  const pct = practice.shots ? Math.round((100 * practice.hits) / practice.shots) : 0;
+  $('rp-stats').textContent = practice.shots
+    ? `Serie ${practice.series + 1} · ${practice.hits}/${practice.shots} (${pct} %)`
+    : `Serie ${practice.series + 1}`;
+  $('rp-kind').textContent = practice.kind === 'prone' ? 'Byt till stående' : 'Byt till liggande';
+  $('rp-pulse').textContent = `Puls: ${RP_PULSES[practice.pulseIdx][1]}`;
+}
+
+function startSeries() {
+  shooting = new Shooting(practice.kind);
+  ski.pulse = RP_PULSES[practice.pulseIdx][0];
+  race.time = 0;
+  wind = new Wind(Math.random);
+  startShooting();
+  rpStats();
+}
+
+function nextSeries() {
+  const hits = 5 - shooting.misses;
+  practice.series++;
+  practice.hits += hits;
+  practice.shots += 5;
+  const t = race.time - race.shootStart;
+  banner(hits === 5 ? 'Fullt!' : `${hits} av 5`, `${practice.kind === 'prone' ? 'Liggande' : 'Stående'} · ${fmtTime(t)}`, 1.4);
+  startSeries();
+}
+
+async function startPractice() {
+  playerName();
+  mode = 'practice';
+  await prepare();
+  ghosts = [];
+  ski.reset();
+  practice.series = 0; practice.hits = 0; practice.shots = 0;
+  race = { lap: 1, s: 0, time: 0, penaltyLeft: 0, penaltyDist: 0, onStraight: false, finishDist: 0, misses: [], splits: [], shootTime: [], shootStart: 0 };
+  recorder = null;
+  startSeries();
+}
+$('btn-range').addEventListener('click', startPractice);
+$('rp-kind').addEventListener('click', () => {
+  practice.kind = practice.kind === 'prone' ? 'standing' : 'prone';
+  practice.series = 0; practice.hits = 0; practice.shots = 0; // egen statistik per ställning
+  startSeries(); // ny serie i den nya ställningen
+});
+$('rp-pulse').addEventListener('click', () => {
+  practice.pulseIdx = (practice.pulseIdx + 1) % RP_PULSES.length;
+  ski.pulse = RP_PULSES[practice.pulseIdx][0];
+  rpStats();
+});
+$('rp-quit').addEventListener('click', toMenu);
 
 async function start() {
   playerName();
