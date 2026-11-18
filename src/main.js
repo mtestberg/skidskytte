@@ -371,7 +371,22 @@ async function enterRoom(code, create) {
 function onRoom(d) {
   if (!room) return;
   if (!d) return;
+  // Min post saknas (tappad anslutning) → lägg tillbaka mig innan något annat händer
+  if (!room.mine()) { room.rejoin(); if (state === 'lobby') renderLobby(); return; }
   room.maybeStart();
+  // Nedräkningen avbröts (någon ny anslöt) → tillbaka till lobbyn, fortfarande redo
+  if (state === 'countdown' && mode === 'mp' && !d.startAt) {
+    state = 'lobby';
+    race = null;
+    room.db.update(`${room.path}/players/${me.id}`, { status: 'lobby', ready: true });
+    room.localStatus = 'lobby';
+    $('banner').classList.add('hidden');
+    showUI();
+    renderLobby();
+    lobbyNote = { text: 'Någon ny anslöt – nedräkningen avbröts. Loppet startar när alla trycker Redo.', until: performance.now() + 6000 };
+    renderLobby();
+    return;
+  }
   if (state === 'lobby') renderLobby();
   // Synkad start: starttid satt och jag är redo i lobbyn
   const my = room.mine();
@@ -387,11 +402,12 @@ function onRoom(d) {
   }
 }
 
+let lobbyNote = null;
 function renderLobby() {
   const ps = room.players();
   const my = room.mine();
   $('l-players').innerHTML = ps.map((p) => {
-    const st = p.status === 'racing' ? 'i loppet' : p.status === 'done' ? 'i mål' : p.ready ? 'Redo ✓' : 'väntar';
+    const st = p.online === false ? 'frånkopplad' : p.status === 'racing' ? 'i loppet' : p.status === 'done' ? 'i mål' : p.ready ? 'Redo ✓' : 'väntar';
     return `<li><span class="dot" style="background:${COLOR_CSS(p.color)}"></span><span>${esc(p.name)}${p.id === me.id ? ' (du)' : ''}</span><span class="st ${p.ready ? 'ok' : ''}">${st}</span></li>`;
   }).join('');
   const busy = ps.some((p) => p.status === 'racing');
@@ -399,10 +415,12 @@ function renderLobby() {
   $('btn-ready').textContent = ready ? 'Inte redo' : 'Redo';
   const startAt = room.data?.startAt;
   const left = startAt ? Math.ceil((startAt - db.now()) / 1000) : 0;
-  $('l-msg').textContent = left > 0 && ready ? `Startar om ${left} s …`
+  $('l-msg').textContent = lobbyNote && performance.now() < lobbyNote.until ? lobbyNote.text
+    : left > 0 && ready ? `Startar om ${left} s …`
     : busy ? 'Ett lopp pågår – du kommer med i nästa.'
     : ps.length < 2 ? 'Väntar på fler … (du kan också köra ensam)'
-    : ps.every((p) => p.ready) ? 'Alla redo!' : '';
+    : ps.every((p) => p.ready) ? 'Alla redo!'
+    : ready ? `Väntar på att alla ska trycka Redo (${ps.filter((p) => p.ready).length}/${ps.length})` : '';
 }
 
 function renderWait() {

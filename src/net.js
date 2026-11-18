@@ -9,6 +9,9 @@
 
 import { FIREBASE_CONFIG } from './config.js';
 
+// Platshållare som byts mot serverns klocka (Firebase serverTimestamp)
+export const SERVER_TIME = '__server_time__';
+
 const FB = 'https://www.gstatic.com/firebasejs/10.12.2/';
 
 export async function connect() {
@@ -60,6 +63,13 @@ class FirebaseDB {
   on(path, cb) { return this.m.onValue(this.ref(path), (s) => cb(s.val())); }
   async push(path, v) { const r = this.m.push(this.ref(path)); await this.m.set(r, v); return r.key; }
   onDisconnectRemove(path) { return this.m.onDisconnect(this.ref(path)).remove(); }
+  onDisconnectUpdate(path, obj) {
+    const o = {};
+    for (const [k, v] of Object.entries(obj)) o[k] = v === SERVER_TIME ? this.m.serverTimestamp() : v;
+    return this.m.onDisconnect(this.ref(path)).update(o);
+  }
+  // cb(true/false) när anslutningen till Firebase kommer/går (t.ex. när telefonen byter app)
+  onConnected(cb) { return this.m.onValue(this.ref('.info/connected'), (s) => cb(!!s.val())); }
   async topBy(path, child, n) {
     const q = this.m.query(this.ref(path), this.m.orderByChild(child), this.m.limitToFirst(n));
     const s = await this.m.get(q);
@@ -107,8 +117,14 @@ class LocalDB {
       this.ch.onmessage = (e) => this.recv(e.data);
       this.ch.postMessage({ t: 'hello' });
     } catch { this.ch = null; }
+    this.mineUpd = [];
     window.addEventListener('pagehide', () => {
       for (const p of this.mine) this.op({ t: 'set', p, v: null });
+      for (const [p, obj] of this.mineUpd) {
+        const o = {};
+        for (const [k, v] of Object.entries(obj)) o[k] = v === SERVER_TIME ? Date.now() : v;
+        this.op({ t: 'update', p, v: o });
+      }
     });
   }
 
@@ -168,6 +184,8 @@ class LocalDB {
     return id;
   }
   async onDisconnectRemove(path) { this.mine.push(path); }
+  async onDisconnectUpdate(path, obj) { this.mineUpd.push([path, obj]); }
+  onConnected(cb) { setTimeout(() => cb(true), 0); return () => {}; }
   async topBy(path, child, n) {
     const o = getAt(this.tree, split(path)) || {};
     return Object.entries(o)

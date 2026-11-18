@@ -125,6 +125,7 @@ button.link { background: none; border: 0; color: #9fd0ff; font-size: 15px; padd
 .msg { min-height: 1.2em; color: #ffd23f; font-size: 14px; margin: 6px 0; }
 .note { font-size: 12px; opacity: 0.6; margin: 6px 0; }
 .bigcode { font-size: 46px !important; letter-spacing: 8px; margin: 0 !important; }
+.steps { text-align: left; max-width: 360px; margin: 6px auto; padding-left: 22px; font-size: 14px; line-height: 1.45; opacity: 0.9; }
 #l-players { list-style: none; padding: 0; margin: 8px auto; max-width: 340px; text-align: left; }
 #l-players li { display: flex; align-items: center; gap: 10px; padding: 7px 4px; border-bottom: 1px solid rgba(255,255,255,0.08); }
 #l-players .dot, .res .dot { width: 14px; height: 14px; border-radius: 50%; flex: none; display: inline-block; }

@@ -13,6 +13,8 @@ export const COLORS = [0xe63946, 0x2a9d8f, 0xf4a261, 0x8e44ad, 0x2b6cb0, 0x43aa8
 export const COLOR_CSS = (c) => '#' + c.toString(16).padStart(6, '0');
 
 export const START_DELAY_MS = 10000;
+export const STALE_MS = 60000; // frånkopplad längre än så → tas bort ur rummet
+import { SERVER_TIME } from './net.js';
 
 export function makeCode() {
   const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
@@ -48,9 +50,42 @@ export class Room {
     const used = new Set(Object.values(players).map((p) => p.color));
     const color = COLORS.find((c) => !used.has(c)) ?? COLORS[Object.keys(players).length % COLORS.length];
     this.me.color = color;
+    this.joinedAt = this.db.now();
+    await this.register('lobby');
+    // Tappas anslutningen (skärmen släcks, man byter app för att dela koden …) tar Firebase
+    // bort spelaren. Då registrerar vi oss igen när anslutningen kommer tillbaka – som
+    // "inte redo", så att ingen start sker utan att man själv tryckt Redo igen.
+    this.offConn = this.db.onConnected((on) => {
+      if (on && this.joined && !this.leaving) this.rejoin();
+    });
+    this.joined = true;
+  }
+
+  async register(status) {
     const pp = `${this.path}/players/${this.me.id}`;
-    await this.db.set(pp, { name: this.me.name, color, ready: false, joinedAt: this.db.now(), status: 'lobby' });
-    await this.db.onDisconnectRemove(pp);
+    await this.db.set(pp, { name: this.me.name, color: this.me.color, ready: false, joinedAt: this.joinedAt, status, online: true });
+    await this.armDisconnect();
+  }
+
+  // Vid tappad anslutning: markera mig som frånkopplad och inte redo (tas inte bort direkt)
+  armDisconnect() {
+    return this.db.onDisconnectUpdate(`${this.path}/players/${this.me.id}`, { online: false, ready: false, offlineAt: SERVER_TIME });
+  }
+
+  // Lägg tillbaka mig själv om min post försvunnit (efter tappad anslutning)
+  async rejoin() {
+    if (this.rejoining || this.leaving) return;
+    this.rejoining = true;
+    try {
+      const cur = await this.db.get(`${this.path}/players/${this.me.id}`);
+      if (!cur) await this.register(this.localStatus || 'lobby');
+      else {
+        await this.db.update(`${this.path}/players/${this.me.id}`, { online: true, offlineAt: null });
+        await this.armDisconnect();
+      }
+    } finally {
+      this.rejoining = false;
+    }
   }
 
   listen(cb) {
@@ -64,8 +99,9 @@ export class Room {
       .sort((a, b) => a.joinedAt - b.joinedAt);
   }
 
+  // Värd = den uppkopplade spelare som gick in först
   isHost() {
-    const ps = this.players();
+    const ps = this.players().filter((p) => p.online !== false);
     return ps.length > 0 && ps[0].id === this.me.id;
   }
 
@@ -76,26 +112,43 @@ export class Room {
   // Värden: om alla är i lobbyn och har tryckt Redo → sätt starttid om 10 s
   maybeStart() {
     if (!this.isHost() || !this.data) return;
-    const ps = this.players();
+    if (!this.mine()) return; // jag finns inte i rummet just nu (återansluter)
+    // Städa bort spelare som varit frånkopplade länge (stängt fliken)
+    const now = this.db.now();
+    for (const p of this.players()) {
+      if (p.online === false && p.offlineAt && now - p.offlineAt > STALE_MS) this.db.remove(`${this.path}/players/${p.id}`);
+    }
+    const ps = this.players().filter((p) => !(p.online === false && p.offlineAt && now - p.offlineAt > STALE_MS));
     if (!ps.length) return;
-    const allReady = ps.every((p) => p.ready && p.status === 'lobby');
+    // Alla i rummet – även tillfälligt frånkopplade – måste ha tryckt Redo
+    const allReady = ps.every((p) => p.ready && p.status === 'lobby' && p.online !== false);
     const pending = this.data.startAt && this.data.startAt > this.db.now() - 1000;
+    // Någon ny (eller frånkopplad som kommit tillbaka) väntar i lobbyn utan att vara redo
+    // under nedräkningen → avbryt, så att ingen blir lämnad kvar
+    if (pending && this.data.startAt > now && ps.some((p) => p.status === 'lobby' && !p.ready && p.online !== false)) {
+      this.db.update(this.path, { startAt: null });
+      return;
+    }
     if (allReady && !pending) {
-      this.db.update(this.path, { startAt: this.db.now() + START_DELAY_MS, raceId: (this.data.raceId || 0) + 1 });
+      this.db.update(this.path, { startAt: this.db.now() + (this.delay || START_DELAY_MS), raceId: (this.data.raceId || 0) + 1 });
     }
   }
 
   setReady(v) { return this.db.update(`${this.path}/players/${this.me.id}`, { ready: v }); }
-  setStatus(s) { return this.db.update(`${this.path}/players/${this.me.id}`, { status: s }); }
+  setStatus(s) { this.localStatus = s; return this.db.update(`${this.path}/players/${this.me.id}`, { status: s }); }
   startRacing() {
+    this.localStatus = 'racing';
     return this.db.update(`${this.path}/players/${this.me.id}`, { status: 'racing', ready: false, result: null, live: { p: 0, st: 's', pd: 0 } });
   }
   sendLive(live) { return this.db.update(`${this.path}/players/${this.me.id}`, { live }); }
   sendResult(result) {
+    this.localStatus = 'done';
     return this.db.update(`${this.path}/players/${this.me.id}`, { status: 'done', result, live: { p: result.progress, st: 'f', pd: 0 } });
   }
   async leave() {
+    this.leaving = true;
     if (this.unsub) this.unsub();
+    if (this.offConn) this.offConn();
     await this.db.remove(`${this.path}/players/${this.me.id}`);
   }
 }

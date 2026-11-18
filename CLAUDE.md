@@ -154,7 +154,12 @@ Till steg 3 (multiplayer)
 - **Steg 2 förberett 2026-11-18**: `tools/build-course.mjs` (GPX/GeoJSON + GeoTIFF i WGS84 eller Lambert-93 → `data/course.json`), `Course` laddar bandatan om den finns och faller annars tillbaka på den procedurella banan. Testat med en syntetisk bana. Arbetsytan kan inte ladda ner kartdata (Overpass, Copernicus m.fl. blockeras), så rådatan måste komma från Maja. Instruktioner i `data/README.md`. Stadion Sylvie Becaert: 45.9417, 6.4275 (IBU).
 
 ### Parkerade frågor till Maja
-1. Fungerar multiplayer över nätet på GitHub Pages (två telefoner i samma rum)? Firebase har inte kunnat testas härifrån.
+1. Multiplayer över nätet testat av Maja 2026-11-18: **bugg** – loppet startade när en spelare tryckt Redo trots att en annan i rummet inte var redo. Orsak: när en telefon tappade anslutningen (byte av app, släckt skärm) tog Firebase bort spelaren ur rummet (`onDisconnect().remove()`), så "alla" var redo. Åtgärdat:
+   - Frånkopplade spelare **stannar kvar** i rummet som "frånkopplad" och "inte redo" (`onDisconnect().update`), och registrerar sig igen automatiskt när anslutningen kommer tillbaka (`.info/connected`). Först efter 60 s frånkoppling tas de bort.
+   - Start kräver att **alla i rummet** är uppkopplade, i lobbyn och har tryckt Redo.
+   - Ansluter någon ny under 10 s-nedräkningen **avbryts** nedräkningen och alla går tillbaka till lobbyn (fortfarande redo).
+   - Lobbyn har en instruktion: dela koden, vänta med Redo tills alla som ska vara med syns i listan, start först när alla är redo.
+   - Testat med tre flikar i lokalt läge. Behöver nytt test över nätet.
 2. ~~Spåret~~ **Besvarat 2026-11-18:** Claude ritar en egen trovärdig 2 km-slinga runt stadion utifrån terrängen (`tools/draw-loop.mjs`, klart och testat med syntetisk höjdmodell).
 3. ~~Höjdmodell~~ **Klart 2026-11-18:** Maja skickade Copernicus GLO-30-rutan N45 E006 (ligger i `raw/`, checkas inte in).
 
