@@ -81,6 +81,7 @@ let camInit = false;
 
 function newRace() {
   ski.reset();
+  ski.assistAllowed = true;
   wind = new Wind();
   race = { lap: 1, s: 0, time: 0, penaltyLeft: 0, penaltyDist: 0, misses: [], splits: [], shootTime: [], shootStart: 0 };
   state = 'countdown';
@@ -165,6 +166,7 @@ function leaveRange() {
   ski.v = 2;
   if (misses > 0) {
     state = 'penalty';
+    ski.assistAllowed = false; // ingen starthjälp på straffrundan
     race.penaltyLeft = misses * PENALTY_LEN;
     race.penaltyDist = 0;
     banner(`${misses} ${misses === 1 ? 'straffrunda' : 'straffrundor'}`, `${misses * PENALTY_LEN} m`, 1.8);
@@ -177,6 +179,7 @@ function leaveRange() {
 }
 
 function nextLap() {
+  ski.assistAllowed = true;
   race.lap++;
   race.s = 0;
   state = 'ski';

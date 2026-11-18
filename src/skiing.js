@@ -47,6 +47,7 @@ export class Skiing {
     this.onPush = null;
     this.stats = { beats: 0, perfect: 0, pushes: 0, wild: 0 };
     this.assist = 3;       // de första tagen från stillastående har nästan hela pendeln som träffzon
+    this.assistAllowed = true; // av under straffrundan
   }
 
   period(grade) {
@@ -161,7 +162,8 @@ export class Skiing {
     this.grade = grade;
     this.T = this.period(grade);
     // Står man still (start, efter vallen, eller stannat i en backe) blir det lätt att komma igång
-    if (this.v < 0.8 && this.assist < 3) this.assist = 3;
+    if (!this.assistAllowed) this.assist = 0;
+    else if (this.v < 0.8 && this.assist < 3) this.assist = 3;
     this.W = this.assist > 0 ? this.T * 0.45 : Math.min(0.17, this.T * 0.3);
 
     if (!this.resolved && this.now >= this.lastBeat + this.W) this.resolve();
