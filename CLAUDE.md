@@ -159,5 +159,6 @@ Till steg 3 (multiplayer)
 3. ~~Höjdmodell~~ **Klart 2026-11-18:** Maja skickade Copernicus GLO-30-rutan N45 E006 (ligger i `raw/`, checkas inte in).
 
 - **Steg 2 klart 2026-11-18**: `data/course.json` = egen 2 km-slinga i dalen vid Le Grand-Bornand (förslag 5 av 5 från `draw-loop.mjs --seed 5`), riktig terräng 1,6 × 1,6 km från Copernicus (utjämnad mot hus/träd). Stadion på 920 m ö.h., stigning ca 64 m per varv. Efter Majas önskemål byggd med `--maxgrade 0.15`: brantast ±15 % (förut +21 %). Simulerat: perfekt ≈ 3:15, bra ≈ 3:35 (samma nivå som den procedurella banan). Andra förslag kan tas fram med andra `--seed`.
-- Nästa: Majas test av multiplayer och nya banan → steg 4 (finputs).
+- **Steg 4, grafik omgång 1 (2026-11-18)**: åkare med nummerlapp, randig overall, mössa med pannband, solglasögon, böjda skidor med bindning, stavar med grepp och trissa, gevär med stock/pipa och sele; viktöverföring i skärsteget. Omgivning: pistat spår (manchesterränder, klassiska spår), röda/blå markeringspinnar, sten i branta sluttningar, smala snöiga granar med färgvariation, sol i himlen, banderoller och hoppande publik längs staketen vid stadion och på läktaren (allt instansierat, `src/scenery.js`).
+- Nästa: Majas test av multiplayer, nya banan och grafiken → fler finputs (ljud, balansering, grafik).
 - Testhake: `window.__game.step(dt)` kör spelet utan rendering (används för automatiska lopp i headless Chrome).

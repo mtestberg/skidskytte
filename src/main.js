@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { Course, loadCourseData, LAP_LEN, LAPS, PENALTY_LEN, TIME_SCALE } from './course.js';
 import { Skiing } from './skiing.js';
 import { Shooting } from './shooting.js';
-import { buildWorld, buildSkier, animateSkier, updateFlags } from './world.js';
+import { buildWorld, buildSkier, animateSkier, updateFlags, SUN_DIR } from './world.js';
 import { drawPendulum, Minimap, Profile, drawFlag, fmtTime } from './hud.js';
 import { Wind } from './wind.js';
 import { connect } from './net.js';
@@ -44,7 +44,7 @@ const sc = sun.shadow.camera;
 sc.left = -35; sc.right = 35; sc.top = 35; sc.bottom = -35; sc.near = 1; sc.far = 300;
 sun.shadow.bias = -0.0005;
 scene.add(sun, sun.target);
-const SUN_DIR = new THREE.Vector3(-0.5, 0.75, 0.35).normalize();
+
 
 // Riktig bana om data/course.json finns, annars procedurell
 const course = new Course(await loadCourseData());
@@ -648,6 +648,7 @@ function frame(now) {
     minimap.draw({ x: course.rangePos[0], z: course.rangePos[1] }, dots, `Varv ${race.lap}/${LAPS}`);
   }
   updateFlags(world.flags, race ? wind.at(race.time) : wind.at(now / 1000), now / 1000);
+  world.animateCrowd(now / 1000);
   renderer.render(scene, camera);
 }
 
@@ -807,4 +808,5 @@ window.__game = {
   get room() { return room; }, get db() { return db; }, get ghosts() { return ghosts; }, me,
   ceremony, camera, useLocalDb: async () => { const m = await import('./net.js'); db = await m.connectLocal(); },
   step: (dt) => update(dt), start: newRace,
+  debugCeremony: (list) => { state = 'ceremony'; ceremony.start(list); showUI(); },
 };

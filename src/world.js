@@ -1,6 +1,9 @@
 // 3D-värld: terräng, himmel, skog, stadion och åkaren.
 import * as THREE from 'three';
 import { smooth } from './course.js';
+import { buildTrack, buildStadiumDetails } from './scenery.js';
+
+export const SUN_DIR = new THREE.Vector3(-0.5, 0.75, 0.35).normalize();
 
 const SIZE_DEFAULT = 1500;
 const SEG = 150;
@@ -12,12 +15,14 @@ export function buildWorld(scene, course) {
     side: THREE.BackSide,
     depthWrite: false,
     fog: false,
-    uniforms: {},
+    uniforms: { sun: { value: SUN_DIR } },
     vertexShader: `varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
-    fragmentShader: `varying vec3 vP; void main(){
+    fragmentShader: `uniform vec3 sun; varying vec3 vP; void main(){
       float h = clamp(vP.y, -0.1, 1.0);
-      vec3 top = vec3(0.30,0.50,0.78), hor = vec3(0.82,0.88,0.94);
-      vec3 c = mix(hor, top, pow(max(h,0.0), 0.6));
+      vec3 top = vec3(0.22,0.45,0.80), hor = vec3(0.80,0.87,0.94);
+      vec3 c = mix(hor, top, pow(max(h,0.0), 0.55));
+      float d = max(dot(normalize(vP), sun), 0.0);
+      c += vec3(1.0,0.92,0.75) * (pow(d, 900.0) * 3.0 + pow(d, 12.0) * 0.18);
       gl_FragColor = vec4(c,1.0); }`,
   });
   const sky = new THREE.Mesh(skyGeo, skyMat);
@@ -67,8 +72,20 @@ export function buildWorld(scene, course) {
     tmp.lerp(trackC, smooth(8, 2.5, d) * 0.85);
     colors[i * 3] = tmp.r; colors[i * 3 + 1] = tmp.g; colors[i * 3 + 2] = tmp.b;
   }
-  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
   geo.computeVertexNormals();
+  // Sten och barmark i branta sluttningar, lite skugga i skogen
+  const nrm = geo.attributes.normal;
+  const rock = new THREE.Color(0x7d8288), rockDark = new THREE.Color(0x5a5e63);
+  for (let i = 0; i < pos.count; i++) {
+    const ny = nrm.getY(i);
+    const steep = smooth(0.86, 0.7, ny);
+    if (steep <= 0) continue;
+    const x = pos.getX(i), z = pos.getZ(i);
+    const n = 0.5 + 0.5 * Math.sin(x * 0.31 + z * 0.17) * Math.cos(z * 0.23);
+    tmp.setRGB(colors[i * 3], colors[i * 3 + 1], colors[i * 3 + 2]).lerp(rock.clone().lerp(rockDark, n), steep * (0.55 + 0.45 * n));
+    colors[i * 3] = tmp.r; colors[i * 3 + 1] = tmp.g; colors[i * 3 + 2] = tmp.b;
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
   const terrain = new THREE.Mesh(
     geo,
     new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92, metalness: 0 })
@@ -76,40 +93,35 @@ export function buildWorld(scene, course) {
   terrain.receiveShadow = true;
   scene.add(terrain);
 
-  // Spårlinjer (klassiska spår + skatebana markeras med käppar)
-  const lineMat = new THREE.LineBasicMaterial({ color: 0xa9b8c8, transparent: true, opacity: 0.7 });
-  for (const off of [-2.2, 2.2]) {
-    const pts = [];
-    for (let s = 0; s <= course.n; s += 4) {
-      const [x, y, z] = course.pointAt(s);
-      const [tx, tz] = course.tangentAt(s);
-      pts.push(new THREE.Vector3(x - tz * off, y + 0.05, z + tx * off));
-    }
-    scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), lineMat));
-  }
-  // Straffrunda
-  {
-    const pts = [];
-    for (let d = 0; d <= 150; d += 2) {
-      const [x, y, z] = course.penaltyPoint(d);
-      pts.push(new THREE.Vector3(x, y + 0.05, z));
-    }
-    scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),
-      new THREE.LineBasicMaterial({ color: 0xd04040 })));
-  }
+  // Pistat spår, straffrunda och markeringspinnar
+  buildTrack(scene, course);
 
   // Skog (granar: stam + tre kjolar), instansierad
   const trunkGeo = new THREE.CylinderGeometry(0.18, 0.28, 2.2, 5);
   trunkGeo.translate(0, 1.1, 0);
+  // Smal alpin gran: fyra kjolar i en geometri, snö på ovansidan av varje kjol
+  const mergeCones = (list) => {
+    const parts = list.map(([r, h, y]) => new THREE.ConeGeometry(r, h, 8, 1, true).translate(0, y, 0));
+    const pos = [], nor = [], idx = [];
+    let off = 0;
+    for (const g of parts) {
+      const gi = g.toNonIndexed();
+      pos.push(...gi.attributes.position.array); nor.push(...gi.attributes.normal.array);
+      off += gi.attributes.position.count;
+    }
+    const out = new THREE.BufferGeometry();
+    out.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    out.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+    return out;
+  };
   const tiers = [
-    new THREE.ConeGeometry(2.4, 3.6, 7).translate(0, 3.2, 0),
-    new THREE.ConeGeometry(1.9, 3.0, 7).translate(0, 5.0, 0),
-    new THREE.ConeGeometry(1.3, 2.6, 7).translate(0, 6.6, 0),
+    mergeCones([[2.1, 3.0, 2.9], [1.75, 2.7, 4.3], [1.35, 2.4, 5.6], [0.95, 2.1, 6.8], [0.5, 1.6, 7.9]]),
   ];
-  const needle = new THREE.MeshStandardMaterial({ color: 0x1f3d2c, roughness: 0.9, flatShading: true });
-  const snowy = new THREE.MeshStandardMaterial({ color: 0xe8eef2, roughness: 0.95, flatShading: true });
+  const needle = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9, flatShading: true, side: THREE.DoubleSide });
+  const snowy = new THREE.MeshStandardMaterial({ color: 0xf0f4f7, roughness: 0.95, flatShading: true, side: THREE.DoubleSide });
   const trunkMat = new THREE.MeshStandardMaterial({ color: 0x4a3426, roughness: 1 });
-  const capGeo = new THREE.ConeGeometry(0.75, 1.2, 7).translate(0, 7.6, 0);
+  // snö: lite mindre och kortare kjolar strax ovanför varje grön kjol
+  const capGeo = mergeCones([[1.7, 1.0, 3.95], [1.4, 0.95, 5.25], [1.05, 0.85, 6.45], [0.72, 0.75, 7.55], [0.35, 0.6, 8.5]]);
 
   const spots = [];
   let tries = 0;
@@ -127,6 +139,8 @@ export function buildWorld(scene, course) {
   const count = spots.length;
   const mTrunk = new THREE.InstancedMesh(trunkGeo, trunkMat, count);
   const mTiers = tiers.map((g) => new THREE.InstancedMesh(g, needle, count));
+  const greens = [0x1c3a2a, 0x234634, 0x18331f, 0x2b4a36, 0x203d2e].map((c) => new THREE.Color(c));
+  for (let i = 0; i < count; i++) mTiers[0].setColorAt(i, greens[i % greens.length]);
   const mCap = new THREE.InstancedMesh(capGeo, snowy, count);
   const m = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), p = new THREE.Vector3();
   spots.forEach(([x, z], i) => {
@@ -150,7 +164,8 @@ export function buildWorld(scene, course) {
   }
 
   const flags = buildStadium(scene, course);
-  return { terrain, flags };
+  const animateCrowd = buildStadiumDetails(scene, course);
+  return { terrain, flags, animateCrowd };
 }
 
 function buildStadium(scene, course) {
@@ -255,19 +270,54 @@ export function updateFlags(flags, wind, t) {
 }
 
 // ---------- Åkaren ----------
-export function buildSkier(bibColor = 0xffd23f, suitColor = 0x1d4f91) {
-  const suit = new THREE.MeshStandardMaterial({ color: suitColor, roughness: 0.55 });
-  const bib = new THREE.MeshStandardMaterial({ color: bibColor, roughness: 0.7 });
-  const skin = new THREE.MeshStandardMaterial({ color: 0xe0b48f, roughness: 0.8 });
-  const dark = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.5 });
-  const skiM = new THREE.MeshStandardMaterial({ color: 0xd0302a, roughness: 0.4 });
-  const pole = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.3, metalness: 0.4 });
+function bibTexture(num, color) {
+  const c = document.createElement('canvas');
+  c.width = 128; c.height = 128;
+  const g = c.getContext('2d');
+  g.fillStyle = '#' + new THREE.Color(color).getHexString();
+  g.fillRect(0, 0, 128, 128);
+  g.fillStyle = '#ffffff';
+  g.fillRect(14, 30, 100, 70);
+  g.fillStyle = '#111';
+  g.font = '800 58px system-ui, sans-serif';
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText(String(num), 64, 68);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+// Skida med uppböjd spets (längd 1.85 m, spetsen mot +z)
+function skiGeometry() {
+  const g = new THREE.BoxGeometry(0.065, 0.018, 1.85, 1, 1, 16);
+  const p = g.attributes.position;
+  for (let i = 0; i < p.count; i++) {
+    const z = p.getZ(i);
+    if (z > 0.62) { const t = (z - 0.62) / 0.3; p.setY(i, p.getY(i) + t * t * 0.07); }
+    if (z < -0.88) p.setY(i, p.getY(i) + (-0.88 - z) * 0.2);
+  }
+  g.computeVertexNormals();
+  return g;
+}
+
+export function buildSkier(bibColor = 0xffd23f, suitColor = 0x1d4f91, bibNo = 7) {
+  const base = new THREE.Color(suitColor);
+  const suit = new THREE.MeshStandardMaterial({ color: base, roughness: 0.45, metalness: 0.05 });
+  const suit2 = new THREE.MeshStandardMaterial({ color: base.clone().offsetHSL(0, 0, -0.15), roughness: 0.5 });
+  const stripe = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.5 });
+  const bibMat = new THREE.MeshStandardMaterial({ map: bibTexture(bibNo, bibColor), roughness: 0.75 });
+  const skin = new THREE.MeshStandardMaterial({ color: 0xe0b48f, roughness: 0.75 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.45 });
+  const glove = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.7 });
+  const lens = new THREE.MeshStandardMaterial({ color: 0x2a2f3a, roughness: 0.1, metalness: 0.8 });
+  const skiM = new THREE.MeshStandardMaterial({ color: 0xd8312f, roughness: 0.3, metalness: 0.1 });
+  const carbon = new THREE.MeshStandardMaterial({ color: 0x262626, roughness: 0.25, metalness: 0.5 });
+  const wood = new THREE.MeshStandardMaterial({ color: 0x3a2a1e, roughness: 0.6 });
 
   const root = new THREE.Group();
   const body = new THREE.Group();
   root.add(body);
-
-  const mk = (geo, mat, parent, x, y, z) => {
+  const mk = (geo, mat, parent, x = 0, y = 0, z = 0) => {
     const m = new THREE.Mesh(geo, mat);
     m.position.set(x, y, z);
     m.castShadow = true;
@@ -275,56 +325,86 @@ export function buildSkier(bibColor = 0xffd23f, suitColor = 0x1d4f91) {
     return m;
   };
 
-  // Ben (höft-pivot) med skidor
+  // Höft/bäcken
+  mk(new THREE.CapsuleGeometry(0.13, 0.12, 4, 10).rotateZ(Math.PI / 2), suit2, body, 0, 0.98, 0);
+
+  // Ben: lår → knä → smalben → pjäxa → skida
   const legs = [];
   for (const side of [-1, 1]) {
     const hip = new THREE.Group();
-    hip.position.set(side * 0.12, 0.95, 0);
+    hip.position.set(side * 0.1, 0.97, 0);
     body.add(hip);
-    mk(new THREE.CapsuleGeometry(0.075, 0.38, 3, 8), suit, hip, 0, -0.25, 0);
+    const thigh = mk(new THREE.CapsuleGeometry(0.075, 0.34, 4, 10), suit, hip, 0, -0.23, 0);
+    thigh.scale.set(1, 1, 1.08);
+    mk(new THREE.BoxGeometry(0.02, 0.36, 0.02), stripe, hip, side * 0.072, -0.23, 0);
     const knee = new THREE.Group();
-    knee.position.set(0, -0.48, 0);
+    knee.position.set(0, -0.46, 0);
     hip.add(knee);
-    mk(new THREE.CapsuleGeometry(0.065, 0.36, 3, 8), suit, knee, 0, -0.22, 0);
-    mk(new THREE.BoxGeometry(0.11, 0.1, 0.26), dark, knee, 0, -0.45, 0.04);
-    const ski = mk(new THREE.BoxGeometry(0.07, 0.025, 1.9), skiM, knee, 0, -0.5, 0.15);
+    mk(new THREE.CapsuleGeometry(0.058, 0.34, 4, 10), suit, knee, 0, -0.21, 0);
+    // pjäxa
+    mk(new THREE.BoxGeometry(0.1, 0.13, 0.27), dark, knee, 0, -0.44, 0.04);
+    mk(new THREE.BoxGeometry(0.104, 0.04, 0.06), skiM, knee, 0, -0.4, -0.07);
+    const ski = new THREE.Group();
+    ski.position.set(0, -0.515, 0.12);
+    knee.add(ski);
+    mk(skiGeometry(), skiM, ski);
+    mk(new THREE.BoxGeometry(0.07, 0.025, 0.2), dark, ski, 0, 0.018, -0.08); // bindning
     legs.push({ hip, knee, ski, side });
   }
 
-  // Bål
+  // Bål (avsmalnande), nummerlapp fram och bak
   const torso = new THREE.Group();
-  torso.position.set(0, 1.0, 0);
+  torso.position.set(0, 1.02, 0);
   body.add(torso);
-  mk(new THREE.CapsuleGeometry(0.17, 0.42, 4, 10), suit, torso, 0, 0.3, 0);
-  const bibM = mk(new THREE.BoxGeometry(0.36, 0.34, 0.36), bib, torso, 0, 0.36, 0);
-  bibM.scale.set(1, 1, 0.92);
-  // Gevär på ryggen
-  const rifle = mk(new THREE.BoxGeometry(0.06, 0.95, 0.12), dark, torso, 0.05, 0.38, -0.24);
-  rifle.rotation.z = 0.35;
-  // Huvud
-  const head = new THREE.Group();
-  head.position.set(0, 0.72, 0.02);
-  torso.add(head);
-  mk(new THREE.SphereGeometry(0.11, 12, 10), skin, head, 0, 0, 0);
-  const hat = mk(new THREE.SphereGeometry(0.118, 12, 8, 0, Math.PI * 2, 0, Math.PI / 1.8), suit, head, 0, 0.015, 0);
-  hat.castShadow = true;
-  mk(new THREE.BoxGeometry(0.2, 0.05, 0.05), dark, head, 0, 0.02, 0.1); // glasögon
+  const chest = mk(new THREE.CylinderGeometry(0.17, 0.135, 0.5, 12), suit, torso, 0, 0.27, 0);
+  chest.scale.set(1, 1, 0.68);
+  mk(new THREE.SphereGeometry(0.17, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), suit, torso, 0, 0.51, 0).scale.set(1.12, 0.45, 0.68);
+  const bibFront = mk(new THREE.PlaneGeometry(0.27, 0.3), bibMat, torso, 0, 0.3, 0.103);
+  bibFront.rotation.x = -0.06;
+  const bibBack = mk(new THREE.PlaneGeometry(0.27, 0.3), bibMat, torso, 0, 0.3, -0.103);
+  bibBack.rotation.y = Math.PI;
+  // Gevär med sele på ryggen
+  const rifle = new THREE.Group();
+  rifle.position.set(0.02, 0.33, -0.17);
+  rifle.rotation.z = 0.42;
+  torso.add(rifle);
+  mk(new THREE.BoxGeometry(0.055, 0.62, 0.11), wood, rifle, 0, -0.08, 0);        // stock
+  mk(new THREE.CylinderGeometry(0.011, 0.011, 0.5, 6), carbon, rifle, 0, 0.47, 0.02); // pipa
+  mk(new THREE.BoxGeometry(0.04, 0.12, 0.08), carbon, rifle, 0, 0.2, 0.05);     // magasin/sikte
+  for (const sx of [-0.11, 0.11]) mk(new THREE.BoxGeometry(0.03, 0.5, 0.02), dark, torso, sx, 0.3, -0.105);
 
-  // Armar med stavar
+  // Huvud: hals, ansikte, mössa med pannband, solglasögon
+  mk(new THREE.CylinderGeometry(0.045, 0.05, 0.08, 8), skin, torso, 0, 0.59, 0.01);
+  const head = new THREE.Group();
+  head.position.set(0, 0.71, 0.02);
+  torso.add(head);
+  mk(new THREE.SphereGeometry(0.105, 14, 12), skin, head).scale.set(0.92, 1.05, 1);
+  mk(new THREE.SphereGeometry(0.11, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2.1), suit, head, 0, 0.012, -0.004);
+  mk(new THREE.TorusGeometry(0.1, 0.018, 6, 18).rotateX(Math.PI / 2), stripe, head, 0, 0.03, 0);
+  const glasses = mk(new THREE.CylinderGeometry(0.104, 0.104, 0.045, 16, 1, true, -1.1, 2.2), lens, head, 0, 0.0, 0.0);
+  glasses.scale.set(1, 1, 1.02);
+
+  // Armar: överarm → armbåge → underarm → handske → stav (grepp, trissa)
   const arms = [];
   for (const side of [-1, 1]) {
     const sh = new THREE.Group();
-    sh.position.set(side * 0.22, 0.52, 0);
+    sh.position.set(side * 0.2, 0.47, 0);
     torso.add(sh);
-    mk(new THREE.CapsuleGeometry(0.055, 0.28, 3, 8), suit, sh, 0, -0.18, 0);
+    mk(new THREE.SphereGeometry(0.06, 8, 6), suit, sh);
+    mk(new THREE.CapsuleGeometry(0.05, 0.24, 4, 8), suit, sh, 0, -0.16, 0);
     const el = new THREE.Group();
-    el.position.set(0, -0.36, 0);
+    el.position.set(0, -0.32, 0);
     sh.add(el);
-    mk(new THREE.CapsuleGeometry(0.05, 0.24, 3, 8), suit, el, 0, -0.15, 0);
-    mk(new THREE.SphereGeometry(0.055, 8, 6), dark, el, 0, -0.32, 0);
-    const p = mk(new THREE.CylinderGeometry(0.012, 0.012, 1.55, 6), pole, el, 0, -1.05, -0.05);
-    p.rotation.x = 0;
-    arms.push({ sh, el, side });
+    mk(new THREE.CapsuleGeometry(0.045, 0.22, 4, 8), suit, el, 0, -0.14, 0);
+    mk(new THREE.SphereGeometry(0.05, 8, 6), glove, el, 0, -0.29, 0.01).scale.set(0.9, 1.1, 1.2);
+    const pole = new THREE.Group();
+    pole.position.set(0, -0.3, 0.02);
+    pole.rotation.x = -0.12;
+    el.add(pole);
+    mk(new THREE.CylinderGeometry(0.02, 0.02, 0.12, 6), dark, pole, 0, 0.0, 0);          // grepp
+    mk(new THREE.CylinderGeometry(0.009, 0.006, 1.55, 6), carbon, pole, 0, -0.78, 0);    // stav
+    mk(new THREE.CylinderGeometry(0.035, 0.035, 0.008, 10), dark, pole, 0, -1.48, 0);   // trissa
+    arms.push({ sh, el, side, pole });
   }
 
   return { root, body, torso, legs, arms, head, phase: 0 };
@@ -333,6 +413,8 @@ export function buildSkier(bibColor = 0xffd23f, suitColor = 0x1d4f91) {
 // push: 1 → 0 efter ett skjut; side: vilket ben skär
 export function animateSkier(sk, dt, push, side, v, grade, mode = 'ski') {
   sk.phase += dt * (1 + v * 0.3);
+  sk.body.position.x = 0;
+  sk.body.rotation.z = 0;
   const crouch = mode === 'prone' ? 0 : 1;
   if (mode === 'cheer' || mode === 'standstill') {
     const cheer = mode === 'cheer';
@@ -359,7 +441,7 @@ export function animateSkier(sk, dt, push, side, v, grade, mode = 'ski') {
     for (const a of sk.arms) { a.sh.rotation.x = -2.6; a.el.rotation.x = 0.4; }
     for (const l of sk.legs) {
       l.hip.rotation.set(0, 0, l.side * 0.15); l.knee.rotation.x = 0;
-      l.ski.rotation.x = -(Math.PI / 2 - 0.15); l.ski.position.y = -0.5;
+      l.ski.rotation.x = -(Math.PI / 2 - 0.15); l.ski.position.y = -0.515;
     }
     return;
   }
@@ -394,9 +476,12 @@ export function animateSkier(sk, dt, push, side, v, grade, mode = 'ski') {
     l.hip.rotation.z = l.side * (active ? 0.18 * p : 0.04);
     l.hip.rotation.x = -0.25 - (active ? 0 : p * 0.2);
     l.knee.rotation.x = 0.45 + (active ? p * 0.25 : 0);
-    l.ski.position.y = -0.5 + (active ? 0 : p * 0.12);
+    l.ski.position.y = -0.515 + (active ? 0 : p * 0.12);
   }
   levelSkis(sk);
+  // viktöverföring: kroppen glider över mot glidbenet
+  sk.body.position.x = skate ? side * 0.07 * (0.4 + 0.6 * p) : 0;
+  sk.body.rotation.z = skate ? -side * 0.06 * p : 0;
   // tuck i utförsbackar utan skjut
   if (grade < -0.05 && p < 0.05) {
     sk.torso.rotation.x = 0.9;
