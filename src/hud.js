@@ -119,3 +119,101 @@ export function fmtTime(t) {
   const s = t - m * 60;
   return `${m}:${s.toFixed(1).padStart(4, '0')}`;
 }
+
+// Vindflagga: hänger nästan rakt ned i stiltje, står ut åt vindens håll när det blåser.
+export function drawFlag(ctx, W, H, wind, t) {
+  ctx.clearRect(0, 0, W, H);
+  const px = W / 2, top = H * 0.1, bottom = H * 0.97;
+  ctx.strokeStyle = '#e6e6e6';
+  ctx.lineWidth = Math.max(2, W * 0.03);
+  ctx.beginPath();
+  ctx.moveTo(px, bottom);
+  ctx.lineTo(px, top);
+  ctx.stroke();
+
+  const strength = Math.min(1, Math.abs(wind) / 4.5);
+  const dir = wind >= 0 ? 1 : -1;
+  const a = 0.12 + strength * 1.35;              // 0 = rakt ned, π/2 = vågrätt
+  const len = W * 0.44, hgt = H * 0.2;
+  const amp = hgt * (0.06 + 0.16 * strength);
+  const speed = 3 + strength * 9;
+  const segs = 12;
+  // Nedre kanten hänger lite mer än den övre (tyget faller)
+  const edge = (off, ang) => {
+    const ex = Math.sin(ang) * dir, ey = Math.cos(ang);
+    const pts = [];
+    for (let i = 0; i <= segs; i++) {
+      const u = i / segs;
+      const w = Math.sin(t * speed - u * 6) * amp * u;
+      pts.push([px + ex * u * len - ey * w * dir, top + off + ey * u * len + Math.abs(ex) * w]);
+    }
+    return pts;
+  };
+  const upper = edge(0, a), lower = edge(hgt, a * 0.8);
+  ctx.beginPath();
+  upper.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+  for (let i = lower.length - 1; i >= 0; i--) ctx.lineTo(lower[i][0], lower[i][1]);
+  ctx.closePath();
+  ctx.fillStyle = '#e8402b';
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+}
+
+// Höjdkurva för varvet med prick för var man är
+export class Profile {
+  constructor(canvas, course) {
+    this.c = canvas;
+    this.ctx = canvas.getContext('2d');
+    this.course = course;
+    let lo = Infinity, hi = -Infinity;
+    for (let i = 0; i < course.n; i += 5) { lo = Math.min(lo, course.es[i]); hi = Math.max(hi, course.es[i]); }
+    this.lo = lo; this.hi = hi;
+  }
+
+  draw(s, toRange = true) {
+    const { ctx, course } = this;
+    const { width: W, height: H } = this.c;
+    const pad = 6, top = 14;
+    const X = (d) => pad + (d / course.n) * (W - 2 * pad);
+    const Y = (e) => H - pad - ((e - this.lo) / (this.hi - this.lo || 1)) * (H - pad - top);
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = 'rgba(10,20,30,0.45)';
+    ctx.beginPath();
+    ctx.roundRect(0, 0, W, H, 10);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(X(0), H - pad);
+    for (let d = 0; d <= course.n; d += 10) ctx.lineTo(X(d), Y(course.es[d % course.n]));
+    ctx.lineTo(X(course.n), H - pad);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(255,255,255,0.22)';
+    ctx.fill();
+    ctx.beginPath();
+    for (let d = 0; d <= course.n; d += 10) {
+      const x = X(d), y = Y(course.es[d % course.n]);
+      d ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+    }
+    ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    // mål/vall vid varvets slut
+    ctx.fillStyle = '#ffd23f';
+    ctx.font = `600 ${Math.round(H * 0.18)}px system-ui, sans-serif`;
+    ctx.textAlign = 'right';
+    ctx.fillText(toRange ? 'Vallen' : 'Mål', W - pad, top - 2);
+    ctx.textAlign = 'left';
+    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    ctx.fillText(`${Math.round(this.hi - this.lo)} m`, pad, top - 2);
+    // jag
+    const x = X(Math.min(s, course.n)), y = Y(course.elevAt(Math.min(s, course.n - 0.01)));
+    ctx.beginPath();
+    ctx.arc(x, y, 5, 0, Math.PI * 2);
+    ctx.fillStyle = '#ff4d4d';
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+}

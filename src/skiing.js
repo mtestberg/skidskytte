@@ -7,11 +7,17 @@
 // - Ju längre från mitten man trycker, desto mer försenas nästa slag (lägre takt).
 // - Tryck utanför fönstret ("ur takt") försenar pendeln och höjer pulsen.
 // - Inga tryck = glid: farten sjunker, pulsen sjunker.
+//
+// Energi (0–100) räcker för hela loppet om man är taktisk:
+// - Varje skjut kostar energi, dåliga skjut och tryck ur takt kostar mer.
+// - Låg energi: pulsen stiger snabbare och sjunker långsammare, skjuten blir svagare.
+// - Energi återhämtas i vila (glid, utför, på vallen), långsammare än pulsen sjunker.
 
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 
 export const PULSE_MIN = 55;
 export const PULSE_MAX = 200;
+export const ENERGY_MAX = 100;
 
 export class Skiing {
   constructor() {
@@ -21,6 +27,8 @@ export class Skiing {
   reset() {
     this.v = 0;            // m/s (verklig fart, banan skalas med TIME_SCALE)
     this.pulse = 70;
+    this.energy = ENERGY_MAX;
+    this.lastPushAt = -10;
     this.now = 0;
     this.T = 1.25;
     this.W = 0.17;
@@ -71,9 +79,29 @@ export class Skiing {
     }
     // Ur takt
     this.nextBeat += 0.2 * this.T;
-    this.pulse = Math.min(PULSE_MAX, this.pulse + 2.5);
+    this.pulse = Math.min(PULSE_MAX, this.pulse + 3 * this.pulseGain());
+    this.spend(0.8);
     this.stats.wild++;
     this.fb('Ur takt', 'bad');
+  }
+
+  // 0…1
+  get energyFrac() {
+    return this.energy / ENERGY_MAX;
+  }
+
+  // Låg energi → pulsen stiger snabbare
+  pulseGain() {
+    return 1 + (1 - this.energyFrac) * 0.6;
+  }
+
+  // Låg energi → svagare skjut (men aldrig stopp)
+  strength() {
+    return 0.65 + 0.35 * Math.min(1, this.energy / 25);
+  }
+
+  spend(x) {
+    this.energy = clamp(this.energy - x, 0, ENERGY_MAX);
   }
 
   fb(text, kind) {
@@ -98,13 +126,16 @@ export class Skiing {
       power = q * 0.45;
     }
     // Skjut framåt (mindre effekt vid hög fart)
-    this.v += 2.2 * power * Math.max(0, 1 - this.v / 16);
+    this.v += 2.2 * power * this.strength() * Math.max(0, 1 - this.v / 16);
     // Felträff → längre till nästa pendelmatch
     this.nextBeat += (1 - q) * 0.5 * this.T;
     // Puls: ansträngning, mer i uppför, mer om slarvigt
     const up = Math.max(0, this.grade);
-    this.pulse += 4.5 * (1 + up * 4) * (0.6 + 0.4 * power) * (1.5 - 0.8 * q);
+    this.pulse += 5.0 * (1 + up * 3.5) * (0.6 + 0.4 * power) * (1.5 - 0.8 * q) * this.pulseGain() * clamp((205 - this.pulse) / 55, 0.15, 1);
     this.pulse = Math.min(PULSE_MAX, this.pulse);
+    // Energi: grundkostnad (mer i uppför) + extra för dålig träff
+    this.spend(0.52 * (1 + up * 4) * (0.7 + 0.3 * power) + (1 - q) * 1.0);
+    this.lastPushAt = this.now;
     this.pushAnim = 1;
     this.pushSide *= -1;
     this.lastPower = power;
@@ -140,11 +171,14 @@ export class Skiing {
     const a = -9.81 * sinA - 0.28 - 0.011 * this.v * this.v;
     this.v = clamp(this.v + a * dt, 0, 18);
 
-    // Puls återhämtar sig vid glid och i utförsbackar
+    // Puls återhämtar sig vid glid och i utförsbackar (långsammare med låg energi)
     const down = grade < -0.02;
-    const rest = down ? 85 : 98;
-    const k = down ? 0.09 : 0.05;
+    const gliding = this.now - this.lastPushAt > 1.6 * this.T;
+    const rest = down ? 92 : gliding ? 100 : 106;
+    const k = (down || gliding ? 0.08 : 0.045) * (0.35 + 0.65 * this.energyFrac);
     this.pulse += (rest - this.pulse) * (1 - Math.exp(-k * dt));
+    // Energi återhämtas i vila
+    if (down || gliding) this.energy = Math.min(ENERGY_MAX, this.energy + (down ? 0.55 : 0.45) * dt);
     this.pulse = clamp(this.pulse, PULSE_MIN, PULSE_MAX);
 
     this.pushAnim = Math.max(0, this.pushAnim - dt * 2.2);
@@ -154,7 +188,8 @@ export class Skiing {
   rest(dt) {
     this.now += dt;
     this.v = Math.max(0, this.v - dt * 4);
-    this.pulse += (68 - this.pulse) * (1 - Math.exp(-0.06 * dt));
+    this.pulse += (70 - this.pulse) * (1 - Math.exp(-0.06 * (0.4 + 0.6 * this.energyFrac) * dt));
+    this.energy = Math.min(ENERGY_MAX, this.energy + 0.35 * dt);
     this.pushAnim = Math.max(0, this.pushAnim - dt * 2.2);
   }
 

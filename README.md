@@ -1,6 +1,6 @@
-# Skidskytte – stafettsträcka i mobilen
+# Skidskytte – sprint i mobilen
 
-Ett skidskyttespel för mobilens webbläsare (landskapsläge). En stafettsträcka: 3 × 2,5 km med liggande och stående skytte.
+Ett skidskyttespel för mobilens webbläsare (landskapsläge). Sprint: 3 × 2,5 km med liggande och stående skytte, energi och vind.
 
 **Spela:** öppna `index.html` via en webbserver, eller GitHub Pages när repot är publicerat.
 

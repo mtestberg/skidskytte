@@ -37,7 +37,14 @@ html, body {
   position: absolute; top: max(8px, env(safe-area-inset-top)); right: max(10px, env(safe-area-inset-right));
   width: 150px; height: 120px;
 }
-#h-speed { position: absolute; top: 136px; right: max(10px, env(safe-area-inset-right)); }
+#profile {
+  position: absolute; top: calc(max(8px, env(safe-area-inset-top)) + 126px); right: max(10px, env(safe-area-inset-right));
+  width: 150px; height: 56px;
+}
+#h-speed { position: absolute; top: calc(max(8px, env(safe-area-inset-top)) + 188px); right: max(10px, env(safe-area-inset-right)); }
+.bar > div.energy { background: #ffd23f; }
+.label span { float: right; font-variant-numeric: tabular-nums; }
+#flag { display: block; width: 90px; height: 80px; margin: 2px auto 0; }
 
 #ski-ui, #shoot-ui { position: fixed; inset: 0; }
 #ski-ui { pointer-events: none; }

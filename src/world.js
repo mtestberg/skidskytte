@@ -148,8 +148,8 @@ export function buildWorld(scene, course) {
     scene.add(im);
   }
 
-  buildStadium(scene, course);
-  return { terrain };
+  const flags = buildStadium(scene, course);
+  return { terrain, flags };
 }
 
 function buildStadium(scene, course) {
@@ -215,6 +215,42 @@ function buildStadium(scene, course) {
   stand.rotation.y = yaw;
   stand.castShadow = true;
   scene.add(stand);
+
+  // Vindflaggor längs vallen (vid mattorna och vid tavlorna)
+  const flags = [];
+  const poleM = new THREE.MeshStandardMaterial({ color: 0xdddddd, roughness: 0.4, metalness: 0.3 });
+  const clothM = new THREE.MeshStandardMaterial({ color: 0xe8402b, roughness: 0.8, side: THREE.DoubleSide });
+  const right = [-nz, nx];
+  for (const [along, out] of [[-21, 4], [21, 4], [-21, 48], [0, 46], [21, 48]]) {
+    const fx = rx + tx * along + nx * out, fz = rz + tz * along + nz * out;
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 4, 6), poleM);
+    pole.position.set(fx, y + 2, fz);
+    pole.castShadow = true;
+    scene.add(pole);
+    const yawG = new THREE.Group();
+    yawG.position.set(fx, y + 3.95, fz);
+    const droop = new THREE.Group();
+    yawG.add(droop);
+    const cloth = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 0.7, 6, 1).translate(0.55, -0.35, 0), clothM);
+    cloth.castShadow = true;
+    droop.add(cloth);
+    scene.add(yawG);
+    flags.push({ yawG, droop, cloth, right, phase: Math.random() * 6 });
+  }
+  return flags;
+}
+
+// Vind i m/s (+ = åt höger sett från skytten)
+export function updateFlags(flags, wind, t) {
+  const strength = Math.min(1, Math.abs(wind) / 4.5);
+  const dir = wind >= 0 ? 1 : -1;
+  const a = 0.12 + strength * 1.35;
+  for (const f of flags) {
+    const [rx, rz] = f.right;
+    f.yawG.rotation.y = Math.atan2(-rz * dir, rx * dir);
+    f.droop.rotation.z = -(Math.PI / 2 - a) + Math.sin(t * 3 + f.phase) * 0.05 * strength;
+    f.cloth.rotation.x = Math.sin(t * (3 + strength * 9) + f.phase) * (0.1 + 0.25 * strength);
+  }
 }
 
 // ---------- Åkaren ----------

@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0b1622" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
-  <title>Skidskytte – stafettsträcka</title>
+  <title>Skidskytte – sprint</title>
   <link rel="icon" href="data:," />
   <link rel="stylesheet" href="style.css" />
   <script type="importmap">{ "imports": { "three": "./vendor/three.module.min.js" } }</script>
@@ -24,8 +24,11 @@
     <div id="pulse">
       <div class="pulse-row"><span class="heart">♥</span><span id="h-bpm">70</span><small>bpm</small></div>
       <div class="bar"><div id="h-pulsebar"></div></div>
+      <div class="label">Energi <span id="h-energy">100 %</span></div>
+      <div class="bar"><div id="h-energybar" class="energy"></div></div>
     </div>
     <canvas id="minimap" width="150" height="120"></canvas>
+    <canvas id="profile"></canvas>
     <div id="h-speed" class="pill small">0 km/h</div>
   </div>
 
@@ -47,6 +50,9 @@
       <div class="pulse-row"><span class="heart" id="s-heart">♥</span><span id="s-bpm">70</span><small>bpm</small></div>
       <div class="label">Andning</div>
       <div class="bar"><div id="s-breath"></div></div>
+      <div class="label">Energi <span id="s-energy">100 %</span></div>
+      <div class="label">Vind</div>
+      <canvas id="flag"></canvas>
     </div>
     <button id="btn-breath" class="bigbtn">Håll andan</button>
     <button id="btn-fire" class="bigbtn fire">Skjut</button>
@@ -59,7 +65,7 @@
   <div id="menu" class="overlay">
     <div class="card">
       <h1>Skidskytte</h1>
-      <p class="sub">Stafettsträcka · Le Grand-Bornand · herr 3 × 2,5 km</p>
+      <p class="sub">Sprint · Le Grand-Bornand · 3 × 2,5 km</p>
       <button id="btn-start" class="primary">Starta loppet</button>
       <div class="settings">
         <label><input type="checkbox" id="opt-sound" checked /> Ljud</label>
@@ -68,7 +74,8 @@
       <details>
         <summary>Så spelar du</summary>
         <p><b>Åkning:</b> Tryck <b>Stavtag</b> och <b>Skär</b> samtidigt när pendeln passerar den gröna zonen. Bara en knapp ger sämre fart. Trycker du fel blir takten långsammare och pulsen stiger. Släpp knapparna i utförsbackarna för att glida och sänka pulsen inför vallen.</p>
-        <p><b>Skytte:</b> Dra för att sikta. Håll in <b>Håll andan</b> (max ca 4 s) för stillare sikte, tryck sedan <b>Skjut</b>. Håller du för länge blir du andfådd. Klockan går hela tiden. Varje miss ger en straffrunda på 150 m.</p>
+        <p><b>Energi:</b> räcker för hela loppet om du är taktisk. Varje tag kostar, dåliga tag kostar mer. Låg energi gör att pulsen stiger snabbare och skjuten blir svagare. Energin kommer tillbaka långsamt när du glider, åker utför eller vilar på vallen. Höjdkurvan under kartan visar vad som väntar.</p>
+        <p><b>Skytte:</b> Dra för att sikta. Håll in <b>Håll andan</b> (max ca 4 s) för stillare sikte, tryck sedan <b>Skjut</b>. Håller du för länge blir du andfådd. Läs vindflaggan: kulan driver åt det håll det blåser, så sikta lite mot vinden. Klockan går hela tiden. Varje miss ger en straffrunda på 150 m.</p>
         <p><b>Dator:</b> J = stavtag, K = skär (mellanslag = båda). Skytte: musen drar, mellanslag = håll andan, Enter = skjut.</p>
       </details>
       <p id="best" class="sub"></p>

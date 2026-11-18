@@ -109,8 +109,26 @@ Claudes tekniska val
 - **Ingen byggkedja.** Ren ES-moduler + Three.js r170 vendrad i `vendor/` (ingen CDN-risk, fungerar direkt på GitHub Pages).
 - Prototypens bana är procedurell (en slinga på exakt 2,5 km med höjdprofil). Byts mot riktig höjddata och spår från Le Grand-Bornand i steg 2.
 
+### Feedback efter första speltestet (2026-11-18)
+- **Format heter Sprint** (5 skott, straffrunda per miss), inte stafett. Vi behåller 3 × 2,5 km.
+- **Liggande var för lätt**, stående lagom. Liggande görs svårare (mer svaj).
+- **Högre puls i åkningen** så att allt blir lite svårare.
+- **Energi**: en total energibudget för loppet (0–100 %).
+  - Låg energi → pulsen stiger snabbare och sjunker långsammare.
+  - Dåliga stavtag/skär (och tryck ur takt) kostar mer energi än bra.
+  - Energi återhämtas i vila (utförsbackar, glid, på vallen), men långsammare än pulsen sjunker.
+  - Vid noll energi kan man fortsätta åka, men skjuten blir svagare (lägre fart).
+- **Höjdkurva** för varvet under minikartan, med en prick för var man är.
+- **Vind i skyttet**: sidvind som varierar under loppet och flyttar träffen åt det håll det blåser. Flagga visar vinden (i kikarvyn och på vallen); ingen siffra, man läser flaggan som i verkligheten.
+
+Till steg 3 (multiplayer)
+- **Placering** visas som "placering / antal deltagare" i HUD:en, så man slipper tolka prickarna.
+- **Lobby**: när alla i rummet tryckt "Redo" startar en **nedräkning på 10 s**, sedan startar loppet.
+- **Animerad prisutdelning** efter loppet: topp tre går upp på pallen och firar.
+
 ## Status
 - Steg 1 (prototyp för en spelare) klar 2026-11-18: pendel, puls, åkning, liggande/stående skytte, straffrundor, tid, minikarta, ljud. Ett helt lopp med bra åkning och fullt skytte tar ca 4:15.
-- Testas på mobilen via en privat claude.ai-länk tills GitHub-repot finns. Gyrosiktet fungerar inte där (sandlådan blockerar rörelsesensorer), bara på GitHub Pages.
-- Nästa: Majas feedback på spelkänslan → steg 2 (riktig bana från Le Grand-Bornand).
+- Repo: github.com/mtestberg/skidskytte (publikt). GitHub Pages: https://mtestberg.github.io/skidskytte/ (Maja slår på Pages själv i Settings → Pages; API:t är inte nåbart härifrån). Även en privat claude.ai-länk finns för test (gyro fungerar inte där).
+- 2026-11-18: feedback från första testet inbyggd: energi, högre puls, svårare liggande, vind + flaggor, höjdkurva, Sprint-namn. Simulerat lopp: perfekt åkning ≈ 4:00 med ~35 % energi kvar; bra ≈ 4:15 med ~20 %; slarvig tar slut på energi i varv 3.
+- Nästa: Majas test av energi/vind → steg 2 (riktig bana från Le Grand-Bornand) → steg 3 (multiplayer med placering, lobby-nedräkning, prisutdelning).
 - Testhake: `window.__game.step(dt)` kör spelet utan rendering (används för automatiska lopp i headless Chrome).

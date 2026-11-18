@@ -2,8 +2,9 @@ import * as THREE from 'three';
 import { Course, LAP_LEN, LAPS, PENALTY_LEN, TIME_SCALE } from './course.js';
 import { Skiing } from './skiing.js';
 import { Shooting } from './shooting.js';
-import { buildWorld, buildSkier, animateSkier } from './world.js';
-import { drawPendulum, Minimap, fmtTime } from './hud.js';
+import { buildWorld, buildSkier, animateSkier, updateFlags } from './world.js';
+import { drawPendulum, Minimap, Profile, drawFlag, fmtTime } from './hud.js';
+import { Wind } from './wind.js';
 import * as sfx from './audio.js';
 
 const $ = (id) => document.getElementById(id);
@@ -43,19 +44,21 @@ scene.add(sun, sun.target);
 const SUN_DIR = new THREE.Vector3(-0.5, 0.75, 0.35).normalize();
 
 const course = new Course();
-buildWorld(scene, course);
+const world = buildWorld(scene, course);
+let wind = new Wind();
 const skier = buildSkier();
 skier.root.traverse((o) => { if (o.isMesh) o.castShadow = true; });
 scene.add(skier.root);
 
 const minimap = new Minimap($('minimap'), course);
+const profile = new Profile($('profile'), course);
 
 function resize() {
   const w = window.innerWidth, h = window.innerHeight;
   renderer.setSize(w, h);
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
-  for (const id of ['pendulum', 'scope']) {
+  for (const id of ['pendulum', 'scope', 'profile', 'flag']) {
     const c = $(id);
     const r = c.getBoundingClientRect();
     const dpr = Math.min(window.devicePixelRatio, 2);
@@ -77,6 +80,7 @@ let camInit = false;
 
 function newRace() {
   ski.reset();
+  wind = new Wind();
   race = { lap: 1, s: 0, time: 0, penaltyLeft: 0, penaltyDist: 0, misses: [], splits: [], shootTime: [], shootStart: 0 };
   state = 'ski';
   ski.restart();
@@ -162,7 +166,8 @@ function finish() {
   $('r-detail').textContent = `${10 - misses}/10 träffar · ${misses} straffrund${misses === 1 ? 'a' : 'or'}` + (isBest ? ' · Personbästa!' : '');
   $('r-splits').innerHTML =
     race.splits.map((s) => `<div><span>${s.label}</span><span>${fmtTime(s.t)}</span></div>`).join('') +
-    `<div><span>Perfekta tag</span><span>${ski.stats.perfect} av ${ski.stats.pushes}</span></div>`;
+    `<div><span>Perfekta tag</span><span>${ski.stats.perfect} av ${ski.stats.pushes}</span></div>` +
+    `<div><span>Energi kvar</span><span>${Math.round(ski.energy)} %</span></div>`;
   if (opts.sound) sfx.beep(true);
   showUI();
 }
@@ -194,7 +199,7 @@ function update(dt) {
     if (arriveTimer <= 0) startShooting();
   } else if (state === 'range') {
     ski.rest(dt);
-    shooting.update(dt, ski.pulse);
+    shooting.update(dt, ski.pulse, wind.at(race.time));
     // Hjärtslag hörs i kikaren
     heartPhase += (dt * ski.pulse) / 60;
     if (heartPhase >= 1) {
@@ -290,6 +295,10 @@ function updateHud() {
   bar.style.width = pct + '%';
   bar.style.backgroundSize = (100 / Math.max(pct, 1)) * 100 + '% 100%';
   $('h-speed').textContent = `${Math.round(ski.v * 3.6)} km/h`;
+  const e = Math.round(ski.energy);
+  $('h-energy').textContent = e + ' %';
+  $('s-energy').textContent = e + ' %';
+  $('h-energybar').style.width = e + '%';
   if (shooting) $('s-breath').style.width = shooting.breath * 100 + '%';
 }
 
@@ -315,6 +324,8 @@ function frame(now) {
   if (state === 'range') {
     const c = $('scope');
     shooting.draw(c.getContext('2d'), c.width, c.height);
+    const f = $('flag');
+    drawFlag(f.getContext('2d'), f.width, f.height, shooting.wind, race.time);
     return; // 3D är dold under kikaren – spara batteri
   }
   placeSkier(dt);
@@ -325,9 +336,11 @@ function frame(now) {
     if (state === 'penalty') { const p = course.penaltyPoint(race.penaltyDist); mx = p[0]; mz = p[2]; }
     else { const p = course.pointAt(race.s); mx = p[0]; mz = p[2]; }
     minimap.draw({ x: mx, z: mz });
+    profile.draw(state === 'penalty' ? course.n : race.s, race.lap < LAPS);
   } else if (state === 'arrive') {
     minimap.draw({ x: course.rangePos[0], z: course.rangePos[1] });
   }
+  updateFlags(world.flags, race ? wind.at(race.time) : wind.at(now / 1000), now / 1000);
   renderer.render(scene, camera);
 }
 

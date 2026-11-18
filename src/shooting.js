@@ -2,6 +2,8 @@
 // Mått i millimeter (verkliga biathlontavlor):
 //   svart platta Ø115 mm. Liggande träffyta Ø45 mm, stående Ø115 mm.
 
+import { WIND_MM_PER_MS } from './wind.js';
+
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 
 export const TARGET_SPACING = 165;
@@ -27,6 +29,7 @@ export class Shooting {
     this.doneTimer = -1;
     this.done = false;
     this.pulse = 100;
+    this.wind = 0;          // m/s, + = åt höger
     this.drift = { x: 0, y: 0, vx: 0, vy: 0 };
     this.events = [];       // ljudhändelser till main
   }
@@ -37,9 +40,9 @@ export class Shooting {
 
   swayAmp() {
     const p = Math.max(0, this.pulse - 65);
-    let a = this.kind === 'prone' ? 4 + p * 0.22 : 14 + p * 0.55;
+    let a = this.kind === 'prone' ? 7 + p * 0.33 : 14 + p * 0.55;
     a *= 1 + this.debt * 0.5;
-    if (this.holding) a *= 0.35;
+    if (this.holding) a *= this.kind === 'prone' ? 0.5 : 0.35;
     return a;
   }
 
@@ -84,7 +87,9 @@ export class Shooting {
 
   fire() {
     if (this.cooldown > 0 || this.shotsLeft <= 0) return null;
-    const p = this.point();
+    const a = this.point();
+    // Vinden för kulan åt det håll det blåser
+    const p = { x: a.x + this.wind * WIND_MM_PER_MS, y: a.y };
     let hit = null;
     for (const t of this.targets) {
       if (!t.hit && Math.hypot(p.x - t.x, p.y - t.y) <= this.hitR) { hit = t; break; }
@@ -99,9 +104,10 @@ export class Shooting {
     return !!hit;
   }
 
-  update(dt, pulse) {
+  update(dt, pulse, wind = 0) {
     this.t += dt;
     this.pulse = pulse;
+    this.wind = wind;
     this.cooldown = Math.max(0, this.cooldown - dt);
     this.recoil = Math.max(0, this.recoil - dt * 4);
 
