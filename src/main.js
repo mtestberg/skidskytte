@@ -555,7 +555,10 @@ function update(dt) {
       if (ev === 'hit') {
         sfx.shot(); sfx.hit();
         const full = shooting.targets.every((t) => t.hit);
-        setTimeout(() => sfx.cheer(full ? 1.2 : 0.45, full ? 3.2 : 1.3), 180);
+        setTimeout(() => {
+          sfx.hitCheer();                       // varje träff: snabbt jubel
+          if (full) sfx.cheer(1.2, 3.5);        // fullt: det stora jublet ovanpå
+        }, 150);
       } else if (ev === 'miss') { sfx.shot(); sfx.miss(); setTimeout(sfx.ooh, 200); }
       else if (ev === 'inhale') sfx.inhale();
       else if (ev === 'exhale') sfx.exhale();

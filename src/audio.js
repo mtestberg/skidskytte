@@ -279,6 +279,13 @@ export function setCrowd(level) {
   setMurmur(level);
 }
 
+// Snabbt, direkt jubel vid träff (hit.mp3, börjar 1 s in i originalfilen). Reserv: vanliga jublet.
+export function hitCheer() {
+  if (!ac) return;
+  if (playSample('hit', 1.0, 0.05, 3.2, 0)) return;
+  cheer(0.45, 1.3);
+}
+
 // Jubel: inspelad publik om den finns (kortas/tonas efter dur), annars syntetiska röster + applåd
 export function cheer(strength = 1, dur = 2.2) {
   if (!ac) return;
@@ -295,7 +302,7 @@ export function cheer(strength = 1, dur = 2.2) {
 
 // ---------- Inspelade ljud (assets/sfx) ----------
 // Laddas när ljudet startas; saknas en fil används det syntetiska ljudet i stället.
-const SAMPLE_FILES = { ooh: 'assets/sfx/ooh.mp3', cheer: 'assets/sfx/cheer.mp3', crowd: 'assets/sfx/crowd.mp3' };
+const SAMPLE_FILES = { ooh: 'assets/sfx/ooh.mp3', cheer: 'assets/sfx/cheer.mp3', crowd: 'assets/sfx/crowd.mp3', hit: 'assets/sfx/hit.mp3' };
 const samples = {};
 function loadSamples() {
   for (const [name, url] of Object.entries(SAMPLE_FILES)) {
