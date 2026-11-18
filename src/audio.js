@@ -14,6 +14,7 @@ export function init() {
     noiseBuf = ac.createBuffer(1, ac.sampleRate * 1.5, ac.sampleRate);
     const d = noiseBuf.getChannelData(0);
     for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    loadSamples();
   } catch (e) {
     ac = null;
   }
@@ -279,9 +280,10 @@ export function setCrowd(level) {
   if (Math.random() < level * 0.08 * dt) whistle(0);
 }
 
-// Jubel: många röster "heeej/jaaa" som stiger och klingar av + applåd
+// Jubel: inspelad publik om den finns (kortas/tonas efter dur), annars syntetiska röster + applåd
 export function cheer(strength = 1, dur = 2.2) {
   if (!ac) return;
+  if (playSample('cheer', Math.min(1, 0.35 + 0.45 * strength), 0.05, dur + 0.6, Math.random() * 0.4)) return;
   const n = Math.min(34, Math.round(14 + 18 * strength));
   for (let i = 0; i < n; i++) {
     const vow = Math.random() < 0.55 ? 'e' : 'a';
@@ -292,9 +294,44 @@ export function cheer(strength = 1, dur = 2.2) {
   for (let i = 0; i < Math.round(2 * strength); i++) whistle(0.2 + Math.random() * dur * 0.6);
 }
 
-// "Åååh" vid miss: röster på vokalen o som glider nedåt
+// ---------- Inspelade ljud (assets/sfx) ----------
+// Laddas när ljudet startas; saknas en fil används det syntetiska ljudet i stället.
+const SAMPLE_FILES = { ooh: 'assets/sfx/ooh.mp3', cheer: 'assets/sfx/cheer.mp3' };
+const samples = {};
+function loadSamples() {
+  for (const [name, url] of Object.entries(SAMPLE_FILES)) {
+    fetch(url)
+      .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(r.status)))
+      .then((buf) => ac.decodeAudioData(buf))
+      .then((ab) => { samples[name] = ab; })
+      .catch(() => { /* behåll syntetiskt ljud */ });
+  }
+}
+// dur: tona ut efter så många sekunder (för korta jubel), offset: börja en bit in i filen
+function playSample(name, gain = 1, rateJitter = 0.06, dur = null, offset = 0) {
+  const b = samples[name];
+  if (!ac || !b) return false;
+  const t = ac.currentTime;
+  const src = ac.createBufferSource();
+  src.buffer = b;
+  src.playbackRate.value = 1 + (Math.random() * 2 - 1) * rateJitter; // lite variation varje gång
+  const g = ac.createGain();
+  g.gain.setValueAtTime(gain, t);
+  if (dur != null && dur < b.duration - offset) {
+    g.gain.setValueAtTime(gain, t + dur * 0.6);
+    g.gain.exponentialRampToValueAtTime(0.0005, t + dur);
+    src.stop(t + dur + 0.05);
+  }
+  src.connect(g).connect(master);
+  src.start(t, offset);
+  return true;
+}
+export const hasSample = (name) => !!samples[name];
+
+// "Åååh" vid miss: inspelad publik om den finns, annars syntetiska röster på o som glider nedåt
 export function ooh() {
   if (!ac) return;
+  if (playSample('ooh', 0.9)) return;
   for (let i = 0; i < 22; i++) {
     voice(Math.random() * 0.15, 1.0 + Math.random() * 0.4, randVoicePitch() * 1.25, 'o', 0.15, 0.72 + Math.random() * 0.08, Math.random() * 1.6 - 0.8);
   }

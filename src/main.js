@@ -682,7 +682,12 @@ function updateAmbience() {
   // Upploppet: återkommande jubelvågor medan man spurtar
   if (race?.onStraight && state === 'ski') {
     straightCheer -= 1 / 60;
-    if (straightCheer <= 0) { sfx.cheer(1.1, 2.4); straightCheer = 1.6 + Math.random() * 0.8; }
+    if (straightCheer <= 0) {
+      // inspelat jubel är 6 s långt – starta en ny våg innan den förra klingat ut
+      const rec = sfx.hasSample('cheer');
+      sfx.cheer(1.1, rec ? 6 : 2.4);
+      straightCheer = rec ? 4.2 + Math.random() : 1.6 + Math.random() * 0.8;
+    }
   } else straightCheer = 0;
   sfx.setCrowd(crowd);
 }
