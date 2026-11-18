@@ -110,4 +110,7 @@ Claudes tekniska val
 - Prototypens bana är procedurell (en slinga på exakt 2,5 km med höjdprofil). Byts mot riktig höjddata och spår från Le Grand-Bornand i steg 2.
 
 ## Status
-- Steg 1 (prototyp för en spelare) påbörjad 2026-11-18.
+- Steg 1 (prototyp för en spelare) klar 2026-11-18: pendel, puls, åkning, liggande/stående skytte, straffrundor, tid, minikarta, ljud. Ett helt lopp med bra åkning och fullt skytte tar ca 4:15.
+- Testas på mobilen via en privat claude.ai-länk tills GitHub-repot finns. Gyrosiktet fungerar inte där (sandlådan blockerar rörelsesensorer), bara på GitHub Pages.
+- Nästa: Majas feedback på spelkänslan → steg 2 (riktig bana från Le Grand-Bornand).
+- Testhake: `window.__game.step(dt)` kör spelet utan rendering (används för automatiska lopp i headless Chrome).
