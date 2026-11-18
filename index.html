@@ -13,7 +13,7 @@
   <link rel="icon" type="image/svg+xml" href="assets/icons/icon.svg" />
   <link rel="icon" type="image/png" sizes="64x64" href="assets/icons/icon-64.png" />
   <link rel="apple-touch-icon" href="assets/icons/icon-180.png" />
-  <link rel="stylesheet" href="style.css?v=202611182008" />
+  <link rel="stylesheet" href="style.css?v=202611182028" />
   <script type="importmap">{ "imports": { "three": "./vendor/three.module.min.js?v=r170" } }</script>
 </head>
 <body>
@@ -72,16 +72,18 @@
   </div>
 
   <div id="banner" class="hidden"></div>
+  <div id="loading" class="hidden">Bygger banan …</div>
 
   <!-- Meny -->
   <div id="menu" class="overlay">
     <div class="card">
       <h1>Skidskytte</h1>
-      <p class="sub" id="menu-sub">Sprint · Le Grand-Bornand · dam 3 × 2 km</p>
+      <p class="sub" id="menu-sub">Sprint · Le Grand-Bornand · 3 × 2 km</p>
       <input id="in-name" class="field" maxlength="16" placeholder="Ditt namn" autocomplete="nickname" />
       <p class="note name-note">Namnet syns för alla i topplistan och i rummen. Använd gärna ett smeknamn.</p>
       <p id="install-hint" class="note hidden"></p>
       <div id="menu-main">
+        <div class="fmt-row crs" id="crs-row"><button class="fmt-btn" data-c="grandbornand">Grand-Bornand</button><button class="fmt-btn" data-c="antholz">Antholz</button><button class="fmt-btn" data-c="hochfilzen">Hochfilzen</button><button class="fmt-btn" data-c="ostersund">Östersund</button></div>
         <div class="fmt-row" id="fmt-row"><button class="fmt-btn" data-f="sprint">Sprint</button><button class="fmt-btn" data-f="distans">Distans</button><button class="fmt-btn" data-f="masstart">Masstart</button></div>
         <p class="note fmt-desc" id="fmt-desc"></p>
         <div class="row">
@@ -115,10 +117,10 @@
       </details>
       <details class="about">
         <summary>Om spelet och licenser</summary>
-        <p><b>Terräng:</b> Höjddatan runt banan i Le Grand-Bornand är bearbetad (utjämnad och nedskalad) från Copernicus DEM GLO-30.<br />
+        <p><b>Terräng:</b> Höjddatan runt banorna i Le Grand-Bornand, Antholz-Anterselva, Hochfilzen och Östersund är bearbetad (utjämnad och nedskalad) från Copernicus DEM GLO-30.<br />
         Produced using Copernicus WorldDEM-30 © DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018 provided under COPERNICUS by the European Union and ESA; all rights reserved.<br />
         The organisations in charge of the Copernicus programme by law or by delegation do not incur any liability for any use of the Copernicus WorldDEM-30.</p>
-        <p><b>Banan</b> är en egen slinga ritad utifrån terrängen, inte den officiella tävlingsbanan.</p>
+        <p><b>Banorna</b> är egna slingor ritade utifrån terrängen, inte de officiella tävlingsbanorna. Miljön (skog, hus, barmark) är påhittad för att påminna om platserna.</p>
         <p><b>Ljud:</b> publikljud från Freesound (krizin, alaskarobotics – CC0 1.0) och Pixabay (soundreality, leo_music_production m.fl. – Pixabay Content License). Övriga ljud är syntetiserade i spelet.</p>
         <p><b>3D:</b> <a href="https://threejs.org" target="_blank" rel="noopener">three.js</a> (MIT-licens, © three.js authors). <b>Multiplayer och topplista:</b> Firebase Realtime Database.</p>
         <p>Namn du skriver in och dina tider visas öppet i topplistan och för andra i samma rum. Inga andra uppgifter sparas.</p>
@@ -157,6 +159,7 @@
         <li><b>Vänta med att trycka Redo</b> tills alla som ska vara med syns i listan.</li>
         <li>När alla trycker Redo startar loppet efter 10 s. Ingen start förrän <b>alla i rummet</b> är redo.</li>
       </ol>
+      <div class="fmt-row crs" id="l-crs"><button class="fmt-btn" data-c="grandbornand">Grand-Bornand</button><button class="fmt-btn" data-c="antholz">Antholz</button><button class="fmt-btn" data-c="hochfilzen">Hochfilzen</button><button class="fmt-btn" data-c="ostersund">Östersund</button></div>
       <div class="fmt-row" id="l-fmt"><button class="fmt-btn" data-f="sprint">Sprint</button><button class="fmt-btn" data-f="distans">Distans</button><button class="fmt-btn" data-f="masstart">Masstart</button></div>
       <p class="note fmt-desc" id="l-fmt-desc"></p>
       <ul id="l-players"></ul>
@@ -171,6 +174,7 @@
   <div id="board" class="overlay hidden">
     <div class="card">
       <h1>Topplista</h1>
+      <div class="fmt-row crs" id="b-crs"><button class="fmt-btn" data-c="grandbornand">Grand-Bornand</button><button class="fmt-btn" data-c="antholz">Antholz</button><button class="fmt-btn" data-c="hochfilzen">Hochfilzen</button><button class="fmt-btn" data-c="ostersund">Östersund</button></div>
       <div class="fmt-row" id="b-tabs"><button class="fmt-btn" data-f="sprint">Sprint</button><button class="fmt-btn" data-f="distans">Distans</button><button class="fmt-btn" data-f="masstart">Masstart</button></div>
       <div id="b-list">Laddar …</div>
       <button id="btn-board-close" class="primary alt">Stäng</button>
@@ -191,6 +195,6 @@
   </div>
 
   <div id="err" class="hidden"></div>
-  <script type="module" src="src/main.js?v=202611182008"></script>
+  <script type="module" src="src/main.js?v=202611182028"></script>
 </body>
 </html>

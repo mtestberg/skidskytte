@@ -2,8 +2,8 @@
 // Live-positionen kommer 4 ggr/s (p = total sträcka, st = läge, pd = sträcka i läget),
 // så här jämnas rörelsen ut: farten skattas och positionen förutsägs mellan uppdateringarna.
 import * as THREE from 'three';
-import { LAP_LEN, TIME_SCALE, FINISH_LEN } from './course.js?v=202611182008';
-import { buildSkier, animateSkier } from './world.js?v=202611182008';
+import { LAP_LEN, TIME_SCALE, FINISH_LEN } from './course.js?v=202611182028';
+import { buildSkier, animateSkier } from './world.js?v=202611182028';
 
 function nameTag(name, color) {
   const c = document.createElement('canvas');
@@ -98,7 +98,8 @@ export class Rivals {
       const off = 3.2 * (r.slot + 1) * (r.slot % 2 ? -1 : 1);
       x = course.rangePos[0] + t0x * off; z = course.rangePos[1] + t0z * off; y = course.stadiumElev;
       [tx, tz] = course.normal;
-      const lap = Math.round((c.progress || 0) / LAP_LEN);
+      const T = this.track || course;
+      const lap = Math.round((c.progress || 0) / T.n);
       const kind = (this.shoots || ['prone', 'standing'])[lap - 1] || 'standing';
       mode = kind === 'prone' ? 'prone' : 'stand';
     } else if (r.st === 'f' || c.done) {
@@ -109,10 +110,11 @@ export class Rivals {
       tx = -dx; tz = -dz; // vänd mot upploppet och heja
       mode = 'cheer';
     } else {
-      const s = ((r.disp % LAP_LEN) + LAP_LEN) % LAP_LEN;
-      [x, y, z] = course.pointAt(s);
-      [tx, tz] = course.tangentAt(s);
-      grade = course.gradeAt(s);
+      const T = this.track || course, N = T.n;
+      const s = ((r.disp % N) + N) % N;
+      [x, y, z] = T.pointAt(s);
+      [tx, tz] = T.tangentAt(s);
+      grade = T.gradeAt(s);
     }
     if (mode === 'ski') { x += -tz * lat; z += tx * lat; }
     sk.root.position.set(x, y, z);

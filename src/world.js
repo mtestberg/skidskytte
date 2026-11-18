@@ -1,7 +1,7 @@
 // 3D-värld: terräng, himmel, skog, stadion och åkaren.
 import * as THREE from 'three';
-import { smooth } from './course.js?v=202611182008';
-import { buildTrack, buildStadiumDetails, buildPortals } from './scenery.js?v=202611182008';
+import { smooth } from './course.js?v=202611182028';
+import { buildTrack, buildStadiumDetails, buildPortals } from './scenery.js?v=202611182028';
 
 export const SUN_DIR = new THREE.Vector3(-0.5, 0.75, 0.35).normalize();
 
@@ -9,6 +9,7 @@ const SIZE_DEFAULT = 1500;
 const SEG = 150;
 
 export function buildWorld(scene, course) {
+  const env = course.env || {};
   // Himmel: gradient-kupol
   const skyGeo = new THREE.SphereGeometry(1800, 24, 12);
   const skyMat = new THREE.ShaderMaterial({
@@ -36,7 +37,7 @@ export function buildWorld(scene, course) {
   for (let i = 0; i < 26; i++) {
     const a = (i / 26) * Math.PI * 2 + Math.random() * 0.1;
     const r = Math.max(1250, SIZE / 2 + 250) + Math.random() * 200;
-    const h = (course.hm ? 380 : 180) + Math.random() * 260;
+    const h = ((course.hm ? 380 : 180) + Math.random() * 260) * (env.mountains ?? 1);
     const w = 220 + Math.random() * 200;
     const m = new THREE.Mesh(new THREE.ConeGeometry(w, h, 6), mtnMat);
     m.position.set(Math.cos(a) * r, h / 2 - 30, Math.sin(a) * r);
@@ -78,12 +79,30 @@ export function buildWorld(scene, course) {
   const rock = new THREE.Color(0x7d8288), rockDark = new THREE.Color(0x5a5e63);
   for (let i = 0; i < pos.count; i++) {
     const ny = nrm.getY(i);
-    const steep = smooth(0.86, 0.7, ny);
+    const steep = Math.min(1, smooth(0.86, 0.7, ny) * (env.rock ?? 1));
     if (steep <= 0) continue;
     const x = pos.getX(i), z = pos.getZ(i);
     const n = 0.5 + 0.5 * Math.sin(x * 0.31 + z * 0.17) * Math.cos(z * 0.23);
     tmp.setRGB(colors[i * 3], colors[i * 3 + 1], colors[i * 3 + 2]).lerp(rock.clone().lerp(rockDark, n), steep * (0.55 + 0.45 * n));
     colors[i * 3] = tmp.r; colors[i * 3 + 1] = tmp.g; colors[i * 3 + 2] = tmp.b;
+  }
+  // Barmark: snöfria fläckar (gräs, jord) i sydsluttningar och långt från spåret
+  const bare = env.bare || 0;
+  if (bare > 0) {
+    const grass = new THREE.Color(0x7a7f4a), dirt = new THREE.Color(0x6b5a45);
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i), z = pos.getZ(i);
+      const [d] = course.nearest(x, z);
+      if (d < 22) continue;
+      const nz = nrm.getZ(i), ny = nrm.getY(i);
+      const sunny = Math.max(0, -nz) * 1.5 + (1 - ny) * 1.2; // södersluttning och lutning
+      const n = Math.sin(x * 0.021 + Math.sin(z * 0.013) * 2) * Math.cos(z * 0.019 + x * 0.007) * 0.5 + 0.5;
+      const v = n * 0.75 + sunny * 0.5 + smooth(22, 70, d) * 0.15;
+      const t = smooth(1 - bare * 2.2, 1.02 - bare * 2.2 + 0.12, v);
+      if (t <= 0) continue;
+      tmp.setRGB(colors[i * 3], colors[i * 3 + 1], colors[i * 3 + 2]).lerp(grass.clone().lerp(dirt, n * 0.6), t * 0.85);
+      colors[i * 3] = tmp.r; colors[i * 3 + 1] = tmp.g; colors[i * 3 + 2] = tmp.b;
+    }
   }
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
   const terrain = new THREE.Mesh(
@@ -125,7 +144,8 @@ export function buildWorld(scene, course) {
 
   const spots = [];
   let tries = 0;
-  while (spots.length < 1100 && tries < 9000) {
+  const TREES = Math.round(1300 * (env.trees ?? 1));
+  while (spots.length < TREES && tries < TREES * 9) {
     tries++;
     const x = (Math.random() - 0.5) * SIZE * 0.95;
     const z = (Math.random() - 0.5) * SIZE * 0.95;
@@ -144,7 +164,7 @@ export function buildWorld(scene, course) {
     const cz = Math.min(CH - 1, Math.max(0, Math.floor(((sp[1] / SIZE) + 0.5) * CH)));
     chunks[cz * CH + cx].push(sp);
   }
-  const greens = [0x1c3a2a, 0x234634, 0x18331f, 0x2b4a36, 0x203d2e].map((c) => new THREE.Color(c));
+  const greens = (env.greens || [0x1c3a2a, 0x234634, 0x18331f, 0x2b4a36, 0x203d2e]).map((c) => new THREE.Color(c));
   const m = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), p = new THREE.Vector3();
   for (const list of chunks) {
     if (!list.length) continue;
@@ -175,10 +195,58 @@ export function buildWorld(scene, course) {
     }
   }
 
+  buildHouses(scene, course, SIZE, env);
   const flags = buildStadium(scene, course);
   const animateCrowd = buildStadiumDetails(scene, course);
   const setClock = buildPortals(scene, course);
   return { terrain, flags, animateCrowd, setClock };
+}
+
+// Hus: chalet (alper, mörkt trä, brett tak) eller svenska (röd/gul panel, vita knutar).
+// Placeras i små klungor en bit från spåret, aldrig på stadion.
+function buildHouses(scene, course, SIZE, env) {
+  const N = env.houses || 0;
+  if (!N) return;
+  const swedish = env.houseStyle === 'swedish';
+  const body = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0);
+  const roof = new THREE.CylinderGeometry(0.72, 0.72, 1, 3, 1).rotateZ(Math.PI / 2).rotateY(Math.PI / 2).scale(1, 0.55, 1);
+  roof.translate(0, 1.0, 0);
+  const walls = swedish ? [0x9b2a20, 0xa33326, 0xd8b04a, 0xe8e2d0] : [0x6b4426, 0x5a3820, 0x7a5030, 0xe9e2d4];
+  const mBody = new THREE.InstancedMesh(body, new THREE.MeshStandardMaterial({ roughness: 0.85 }), N);
+  const mRoof = new THREE.InstancedMesh(roof, new THREE.MeshStandardMaterial({ color: 0xf2f5f8, roughness: 0.9, flatShading: true }), N);
+  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), p = new THREE.Vector3();
+  const centers = [];
+  for (let c = 0; c < Math.max(1, Math.round(N / 5)); c++) {
+    for (let t = 0; t < 200; t++) {
+      const x = (Math.random() - 0.5) * SIZE * 0.8, z = (Math.random() - 0.5) * SIZE * 0.8;
+      const [d] = course.nearest(x, z);
+      if (d > 45 && Math.hypot(x - course.stadium[0], z - course.stadium[1]) > 170) { centers.push([x, z]); break; }
+    }
+  }
+  let k = 0;
+  for (let i = 0; i < N * 30 && k < N && centers.length; i++) {
+    const [cx, cz] = centers[k % centers.length];
+    const x = cx + (Math.random() - 0.5) * 90, z = cz + (Math.random() - 0.5) * 90;
+    const [d, e] = course.nearest(x, z);
+    if (d < 30 || Math.hypot(x - course.stadium[0], z - course.stadium[1]) < 150) continue;
+    let h = course.terrainHeight(x, z);
+    const w = smooth(16, 6, d); h = h * (1 - w) + e * w;
+    const big = Math.random() < 0.3;
+    const W = (big ? 11 : 7) + Math.random() * 3, Dp = (big ? 14 : 9) + Math.random() * 3, H = (swedish ? 5 : 4.2) + (big ? 2.5 : 0);
+    q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.random() * Math.PI);
+    sc.set(W, H, Dp);
+    p.set(x, h - 0.5, z);
+    m.compose(p, q, sc);
+    mBody.setMatrixAt(k, m);
+    mBody.setColorAt(k, new THREE.Color(walls[Math.floor(Math.random() * walls.length)]));
+    sc.set(W * 1.15, H * 0.9, Dp * 1.1);
+    p.set(x, h - 0.5 + H * 0.02, z);
+    m.compose(p, q, sc);
+    mRoof.setMatrixAt(k, m);
+    k++;
+  }
+  mBody.count = mRoof.count = k;
+  for (const im of [mBody, mRoof]) { im.castShadow = true; im.receiveShadow = true; scene.add(im); }
 }
 
 function buildStadium(scene, course) {

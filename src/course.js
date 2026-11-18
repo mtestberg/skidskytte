@@ -1,4 +1,4 @@
-import { makeTransit } from './paths.js?v=202611182008';
+import { makeTransit } from './paths.js?v=202611182028';
 // Bana: en sluten slinga på exakt LAP_LEN meter med höjdprofil.
 // Två källor:
 //  - inbakad bana (data/course.json från tools/build-course.mjs): riktigt spår + höjdkarta
@@ -11,6 +11,7 @@ export const TIME_SCALE = 5;      // åkningen går 5× fortare än verklig fart
 export const JOIN_S = 50; // var man kommer ut på banan igen efter vallen/straffrundan
 export const PENALTY_RADIUS = PENALTY_LEN / (2 * Math.PI);
 export const FINISH_LEN = 200;   // upploppsraka efter sista varvet
+export const SHORT_LAP = 1500;   // kortare varv (masstart) via en genväg i slingan
 
 export function proceduralHeight(x, z) {
   return (
@@ -28,7 +29,7 @@ function rawPath(u) {
 }
 
 // Hämta inbakad bana om den finns (annars null → procedurell)
-export async function loadCourseData(url = 'data/course.json') {
+export async function loadCourseData(url = 'data/courses/grandbornand.json') {
   try {
     const r = await fetch(url, { cache: 'no-cache' });
     if (!r.ok) return null;
@@ -39,8 +40,12 @@ export async function loadCourseData(url = 'data/course.json') {
 }
 
 export class Course {
-  constructor(data = null) {
+  constructor(data = null, cfg = null) {
     this.data = data;
+    this.cfg = cfg;
+    this.id = cfg?.id || 'grandbornand';
+    this.env = cfg?.env || {};
+    const LOOP = cfg?.loop || LAP_LEN;
     this.name = data?.name || 'Procedurell bana';
     // 1. Rå punkter (+ höjd för inbakad bana) och kumulativ längd
     const raw = [];
@@ -57,12 +62,12 @@ export class Course {
       total += Math.hypot(raw[i][0] - raw[i - 1][0], raw[i][1] - raw[i - 1][1]);
       cum.push(total);
     }
-    // Skala så att varvet blir exakt LAP_LEN (riktiga banan skalas bara några procent)
-    const k = LAP_LEN / total;
+    // Skala så att varvet blir exakt banans slingläng (riktiga banan skalas bara några procent)
+    const k = LOOP / total;
     this.k = k;
     this.hm = data?.terrain || null;
     // 2. Sampla jämnt var 1 m
-    this.n = LAP_LEN;
+    this.n = LOOP;
     this.xs = new Float32Array(this.n);
     this.zs = new Float32Array(this.n);
     this.es = new Float32Array(this.n);
@@ -90,11 +95,34 @@ export class Course {
     }
     // 4. Platt stadion runt s = 0
     const e0 = e[0];
+    // Begränsa lutningen in mot stadion (12 %) innan stadion plattas till
+    if (data) for (let i = 0; i < this.n; i++) {
+      const d = Math.min(i, this.n - i);
+      e[i] = Math.min(e0 + 0.12 * d, Math.max(e0 - 0.12 * d, e[i]));
+    }
     for (let i = 0; i < this.n; i++) {
       const d = Math.min(i, this.n - i);
       // inbakad bana: lång övergång så att stadion inte skapar en brant vägg
-      const t = data ? smooth(260, 40, d) : smooth(80, 30, d);
+      const t = data ? smooth(140, 40, d) : smooth(80, 30, d);
       e[i] = e[i] * (1 - t) + e0 * t;
+    }
+    // Lutningsbegränsning (data-banor): jämna ut partier brantare än 14 % (t.ex. backen
+    // ner mot stadion där stadion plattas till). Stadion (±40 m) ligger fast.
+    if (data) {
+      const G = 0.14, n = this.n;
+      for (let pass = 0; pass < 400; pass++) {
+        let changed = false;
+        for (let i = 0; i < n; i++) {
+          const j = (i + 1) % n, ex = e[j] - e[i];
+          if (Math.abs(ex) <= G) continue;
+          const fix = (Math.abs(ex) - G) / 2 * Math.sign(ex);
+          const pi = Math.min(i, n - i) < 40, pj = Math.min(j, n - j) < 40;
+          if (!pi) e[i] += pj ? fix * 2 : fix;
+          if (!pj) e[j] -= pi ? fix * 2 : fix;
+          changed = true;
+        }
+        if (!changed) break;
+      }
     }
     this.es = e;
     this.stadiumElev = e0;
@@ -125,6 +153,142 @@ export class Course {
     }
     this.buildTransits();
     for (const k in this.transits) for (const [x, z] of this.transits[k].samples) this.coarse.push([x, z, e0]);
+    // Genvägar för kortare varv (en per varvlängd som någon gren använder)
+    // Varje gren har en lista med önskade varvlängder; den första som går att lösa med
+    // en bra genväg (eller hela slingan) används. lapLens = { gren: varvlängd }.
+    this.shortcuts = new Map();
+    this.lapLens = {};
+    for (const [f, pref] of Object.entries(cfg?.laps || { sprint: this.n, distans: this.n, masstart: [SHORT_LAP] })) {
+      let chosen = this.n;
+      for (const len of [].concat(pref)) {
+        if (len >= this.n) { chosen = this.n; break; }
+        if (this.shortcuts.has(len)) { chosen = len; break; }
+        const sc = this.findShortcut(this.n - len, [...this.shortcuts.values()]);
+        if (!sc) continue;
+        this.shortcuts.set(len, sc);
+        for (let d = 0; d < sc.len; d += 4) { const q = sc.at(d); this.coarse.push([q.x, q.z, q.y]); }
+        chosen = len;
+        break;
+      }
+      this.lapLens[f] = chosen;
+    }
+    this.views = new Map();
+  }
+
+  // Letar upp en genväg mellan två punkter a < b på slingan som gör varvet exakt
+  // `cut` meter kortare: (b − a) − genvägens längd = cut. Genvägen ska ligga en bit
+  // från stadion, inte korsa eller komma nära resten av spåret, svänga mjukt och
+  // ha rimlig lutning (höjden följer terrängen, utjämnad).
+  findShortcut(cut, others = []) {
+    const n = this.n, P = (s) => { const p = this.pointAt(s); return [p[0], p[2]]; };
+    let best = null;
+    const st = (this.scStats = { f: 0, turn: 0, clear: 0, grade: 0, wall: 0, other: 0, ok: 0 });
+    for (let a = 150; a <= n - 120 - cut; a += 10) {
+      const pa = P(a), ta = this.tangentAt(a);
+      // Avfarten får vika av i en vinkel (som en spårgaffel) i stället för att gå
+      // parallellt med slingan en lång bit – då slipper man S-kurvor och höjdväggar.
+      const make = (b) => {
+        const pb = P(b), tb = this.tangentAt(b);
+        const ux = pb[0] - pa[0], uz = pb[1] - pa[1], ul = Math.hypot(ux, uz) || 1;
+        const mix = (t) => { const x = t[0] + 0.9 * ux / ul, z = t[1] + 0.9 * uz / ul, l = Math.hypot(x, z) || 1; return [x / l, z / l]; };
+        return makeTransit(pa, mix(ta), pb, mix(tb), 0);
+      };
+      const f = (b) => (b - a) - make(b).len - cut;
+      let lo = a + cut + 2, hi = Math.min(n - 120, a + cut + 1100);
+      if (hi <= lo || f(lo) > 0 || f(hi) < 0) { st.f++; continue; }
+      for (let it = 0; it < 30; it++) { const m = (lo + hi) / 2; if (f(m) < 0) lo = m; else hi = m; }
+      const b = (lo + hi) / 2;
+      const path = make(b);
+      if (path.len < 30) continue;
+      // mjuk sväng: riktningen får ändras högst 1/9 rad per meter (radie ≥ 9 m)
+      let ok = true, prev = path.at(0);
+      for (let d = 2; d <= path.len && ok; d += 2) {
+        const q = path.at(d);
+        const da = Math.abs(Math.atan2(q.tx * prev.tz - q.tz * prev.tx, q.tx * prev.tx + q.tz * prev.tz));
+        if (da / 2 > 1 / 9) ok = false;
+        prev = q;
+      }
+      if (!ok) { st.turn++; continue; }
+      // fritt från resten av spåret och stadion
+      for (let d = 40; d <= path.len - 40 && ok; d += 4) {
+        const q = path.at(d);
+        if (Math.hypot(q.x - this.stadium[0], q.z - this.stadium[1]) < 90) ok = false;
+        for (let i = 0; i < n && ok; i += 6) {
+          if (Math.abs(i - a) < 70 || Math.abs(i - b) < 70) continue;
+          if ((this.xs[i] - q.x) ** 2 + (this.zs[i] - q.z) ** 2 < 12 * 12) ok = false;
+        }
+      }
+      if (!ok) { st.clear++; continue; }
+      // höjd: terrängen längs genvägen, utjämnad och anpassad till spårets höjd i ändarna
+      const L = Math.floor(path.len);
+      let y = new Float32Array(L + 1);
+      for (let d = 0; d <= L; d++) { const q = path.at(d); y[d] = this.terrainHeight(q.x, q.z); }
+      for (let pass = 0; pass < 3; pass++) {
+        const o = new Float32Array(L + 1);
+        for (let d = 0; d <= L; d++) { let sum = 0, c = 0; for (let k = -12; k <= 12; k++) { const j = d + k; if (j >= 0 && j <= L) { sum += y[j]; c++; } } o[d] = sum / c; }
+        y = o;
+      }
+      const ea = this.elevAt(a), eb = this.elevAt(b), y0 = y[0], y1 = y[L];
+      for (let d = 0; d <= L; d++) { const t = d / L; y[d] += (ea - y0) * (1 - t) + (eb - y1) * t; }
+      // För brant? Blanda mot en jämn lutning mellan ändarna (terrängen schaktas/fylls längs spåret)
+      const grade = (arr) => { let g = 0; for (let d = 4; d <= L; d += 4) g = Math.max(g, Math.abs(arr[d] - arr[d - 4]) / 4); return g; };
+      let maxG = grade(y);
+      for (let w = 0.1; maxG > 0.13 && w <= 1.001; w += 0.1) {
+        const yy = new Float32Array(L + 1);
+        for (let d = 0; d <= L; d++) yy[d] = y[d] * (1 - w) + (ea + (eb - ea) * (d / L)) * w;
+        const g = grade(yy);
+        if (g <= 0.13 || w > 0.95) { y = yy; maxG = g; }
+      }
+      if (maxG > 0.16) { st.grade++; continue; }
+      // Ingen vägg vid avfarterna: där genvägen ligger nära slingan får höjdskillnaden
+      // inte vara större än en lagom slänt (1:2,5), annars skär terrängen över spåret.
+      const near = (q, yy) => {
+        let worst = 0;
+        for (let i = 0; i < n; i += 3) {
+          const h = Math.hypot(this.xs[i] - q.x, this.zs[i] - q.z);
+          if (h > 26) continue;
+          const dy = Math.abs(this.es[i] - yy);
+          worst = Math.max(worst, dy - Math.max(0, h - 3) / 2);
+        }
+        return worst;
+      };
+      let wall = 0;
+      for (let d = 0; d <= L; d += 3) wall = Math.max(wall, near(path.at(d), y[d]));
+      if (wall > 1.2) { st.wall++; continue; }
+      // inte för nära en annan genväg
+      if (others.some((o) => { for (let d = 0; d <= L; d += 8) { const q = path.at(d); for (let e = 0; e <= o.len; e += 8) { const r = o.at(e); if ((r.x - q.x) ** 2 + (r.z - q.z) ** 2 < 20 * 20) return true; } } return false; })) { st.other++; continue; }
+      st.ok++;
+      const score = maxG + path.len / 4000;
+      if (!best || score < best.score) best = { a, b, path, y, L, score, maxG };
+    }
+    if (!best) return null;
+    const { a, b, path, y, L } = best;
+    const yAt = (d) => { const c = Math.max(0, Math.min(L, d)), i = Math.min(L - 1, Math.floor(c)), f = c - i; return y[i] + (y[i + 1] - y[i]) * f; };
+    return {
+      a, b, len: path.len, maxGrade: best.maxG,
+      at: (d) => { const q = path.at(d); q.y = yAt(d); return q; },
+    };
+  }
+
+  // Varvet för en viss varvlängd: hela slingan (2 km) eller slingan med genväg.
+  // Returnerar ett objekt med samma metoder som banan (pointAt, tangentAt, gradeAt …).
+  lapView(len = this.n) {
+    if (len >= this.n || !this.shortcuts.has(len)) return this;
+    if (this.views.has(len)) return this.views.get(len);
+    const { a, b, len: L, at } = this.shortcuts.get(len);
+    const v = Object.create(this);
+    v.n = Math.round(a + L + (this.n - b));
+    v.xs = new Float32Array(v.n); v.zs = new Float32Array(v.n); v.es = new Float32Array(v.n);
+    for (let i = 0; i < v.n; i++) {
+      let x, y, z;
+      if (i < a) [x, y, z] = this.pointAt(i);
+      else if (i < a + L) { const q = at(i - a); x = q.x; y = q.y; z = q.z; }
+      else [x, y, z] = this.pointAt(b + (i - a - L));
+      v.xs[i] = x; v.zs[i] = z; v.es[i] = y;
+    }
+    v.isShort = true;
+    this.views.set(len, v);
+    return v;
   }
 
   // Terränghöjd i spelkoordinater

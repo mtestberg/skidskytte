@@ -15,7 +15,7 @@ export const COLOR_CSS = (c) => '#' + c.toString(16).padStart(6, '0');
 export const START_DELAY_MS = 10000;
 const ROOM_TTL_MS = 12 * 3600 * 1000; // rum som inte använts på 12 h städas bort
 export const STALE_MS = 60000; // frånkopplad längre än så → tas bort ur rummet
-import { SERVER_TIME } from './net.js?v=202611182008';
+import { SERVER_TIME } from './net.js?v=202611182028';
 
 export function makeCode() {
   const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
@@ -42,8 +42,14 @@ export class Room {
     return (await this.db.get(this.path)) != null;
   }
 
-  async create(format = 'sprint') {
-    await this.db.update(this.path, { created: this.db.now(), touched: this.db.now(), raceId: 0, format });
+  async create(format = 'sprint', course = 'grandbornand') {
+    await this.db.update(this.path, { created: this.db.now(), touched: this.db.now(), raceId: 0, format, course });
+  }
+
+  // Värden väljer bana (inte under nedräkning)
+  setCourse(course) {
+    if (this.data?.startAt && this.data.startAt > this.db.now()) return;
+    return this.db.update(this.path, { course });
   }
 
   // Värden väljer gren (inte under ett pågående lopp/nedräkning)

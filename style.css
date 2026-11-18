@@ -194,3 +194,9 @@ details.about a { color: #9fd3ff; }
 .fmt-btn:disabled { cursor: default; }
 .fmt-btn:disabled:not(.on) { opacity: 0.45; }
 .fmt-desc { margin: 2px 0 6px; font-size: 12px; }
+
+.fmt-row.crs { flex-wrap: wrap; }
+.fmt-row.crs .fmt-btn { font-size: 13px; padding: 5px 11px; }
+.fmt-row.crs .fmt-btn.on { background: #9fd3ff; border-color: #9fd3ff; }
+#loading { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(8,18,30,0.7); color: #fff; font-size: 20px; font-weight: 700; z-index: 50; }
+#loading.hidden { display: none; }

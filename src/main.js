@@ -1,18 +1,19 @@
 import * as THREE from 'three';
-import { Course, loadCourseData, LAP_LEN, LAPS, PENALTY_LEN, TIME_SCALE, FINISH_LEN, JOIN_S } from './course.js?v=202611182008';
-import { Skiing } from './skiing.js?v=202611182008';
-import { Shooting, AIM_LIMIT } from './shooting.js?v=202611182008';
-import { buildWorld, buildSkier, animateSkier, updateFlags, SUN_DIR } from './world.js?v=202611182008';
-import { createSnow } from './scenery.js?v=202611182008';
-import { drawPendulum, Minimap, Profile, drawFlag, fmtTime } from './hud.js?v=202611182008';
-import { Wind } from './wind.js?v=202611182008';
-import { connect } from './net.js?v=202611182008';
-import { Room, makeCode, makeId, standings, GhostRecorder, decodeGhost, ghostAt, COLOR_CSS } from './mp.js?v=202611182008';
-import { Ceremony } from './ceremony.js?v=202611182008';
-import { FORMATS, FORMAT_IDS, getFormat, boardPath, storeKey } from './formats.js?v=202611182008';
-import { Rivals } from './rivals.js?v=202611182008';
+import { Course, loadCourseData, LAP_LEN, LAPS, PENALTY_LEN, TIME_SCALE, FINISH_LEN, JOIN_S } from './course.js?v=202611182028';
+import { Skiing } from './skiing.js?v=202611182028';
+import { Shooting, AIM_LIMIT } from './shooting.js?v=202611182028';
+import { buildWorld, buildSkier, animateSkier, updateFlags, SUN_DIR } from './world.js?v=202611182028';
+import { createSnow } from './scenery.js?v=202611182028';
+import { drawPendulum, Minimap, Profile, drawFlag, fmtTime } from './hud.js?v=202611182028';
+import { Wind } from './wind.js?v=202611182028';
+import { connect } from './net.js?v=202611182028';
+import { Room, makeCode, makeId, standings, GhostRecorder, decodeGhost, ghostAt, COLOR_CSS } from './mp.js?v=202611182028';
+import { Ceremony } from './ceremony.js?v=202611182028';
+import { FORMATS, FORMAT_IDS, getFormat, boardPath, storeKey, kmText } from './formats.js?v=202611182028';
+import { COURSES, COURSE_IDS, getCourse } from './courses.js?v=202611182028';
+import { Rivals } from './rivals.js?v=202611182028';
 import qrcode from '../vendor/qrcode.js';
-import * as sfx from './audio.js?v=202611182008';
+import * as sfx from './audio.js?v=202611182028';
 
 const $ = (id) => document.getElementById(id);
 window.addEventListener('error', (e) => { const el = $('err'); el.textContent = 'Fel: ' + e.message; el.classList.remove('hidden'); });
@@ -50,19 +51,39 @@ sun.shadow.bias = -0.0005;
 scene.add(sun, sun.target);
 
 
-// Riktig bana om data/course.json finns, annars procedurell
-const course = new Course(await loadCourseData());
-const world = buildWorld(scene, course);
-const rivals = new Rivals(scene, course);
+// ---------- Banor: bygg världen för vald bana (byggs om när man byter bana) ----------
+let courseCfg = getCourse(store.get('course', 'grandbornand'));
+let course = null, world = null, ceremony = null, worldGroup = null;
+const courseCache = new Map();
+async function buildCourse(cfg) {
+  let c = courseCache.get(cfg.id);
+  if (!c) { c = new Course(await loadCourseData(cfg.file), cfg); courseCache.set(cfg.id, c); }
+  if (worldGroup) {
+    scene.remove(worldGroup);
+    worldGroup.traverse((o) => {
+      o.geometry?.dispose?.();
+      for (const m of [].concat(o.material || [])) { m.map?.dispose?.(); m.dispose?.(); }
+    });
+  }
+  worldGroup = new THREE.Group();
+  scene.add(worldGroup);
+  course = c;
+  courseCfg = cfg;
+  world = buildWorld(worldGroup, course);
+  ceremony = new Ceremony(worldGroup, course);
+  if (rivals) { rivals.clear(); rivals.course = course; }
+}
+var rivals = new Rivals(scene, null);
+await buildCourse(courseCfg);
 let wind = new Wind();
 const skier = buildSkier();
 skier.root.traverse((o) => { if (o.isMesh) o.castShadow = true; });
 scene.add(skier.root);
 
-const minimap = new Minimap($('minimap'), course);
-const ceremony = new Ceremony(scene, course);
+let track = course; // varvet för vald gren (hela slingan eller med genväg)
+let minimap = new Minimap($('minimap'), course);
 const snow = createSnow(scene);
-const profile = new Profile($('profile'), course);
+let profile = new Profile($('profile'), course);
 
 function resize() {
   const w = window.innerWidth, h = window.innerHeight;
@@ -126,7 +147,10 @@ function newRace(countSeconds = 3, seed = null) {
   $('ski-ui').classList.remove('sprint');
   race = { lap: 1, s: 0, time: 0, penaltyTime: 0, penaltyLeft: 0, penaltyDist: 0, onStraight: false, finishDist: 0, misses: [], splits: [], shootTime: [], shootStart: 0 };
   rivals.shoots = fmt.shoots;
-  ski.energyScale = 3 / fmt.laps; // energibudgeten räcker hela loppet oavsett antal varv
+  // Energin räcker hela loppet: samma budget per km som sprinten, och lite extra i de
+  // längre grenarna eftersom loppen tar längre tid (pulsen ska inte rasa sista varvet).
+  ski.energyScale = (6000 / (fmt.laps * track.n)) * (fmt.laps > 3 ? 0.8 : 1);
+  rivals.track = track; // energibudgeten räcker hela loppet oavsett antal varv
   state = 'countdown';
   countdown = countSeconds - 0.001;
   recorder = new GhostRecorder();
@@ -271,9 +295,9 @@ function finish() {
   const total = race.time + race.penaltyTime;
   const misses = race.misses.reduce((a, b) => a + b, 0);
   const shots = fmt.shoots.length * 5;
-  const best = store.get(storeKey(fmt, 'best'), null);
+  const best = store.get(storeKey(courseCfg.id, fmt, 'best'), null);
   const isBest = best == null || total < best;
-  if (isBest) store.set(storeKey(fmt, 'best'), total);
+  if (isBest) store.set(storeKey(courseCfg.id, fmt, 'best'), total);
   $('r-time').textContent = fmtTime(total);
   const pen = fmt.penalty === 'time'
     ? `${misses} straffminut${misses === 1 ? '' : 'er'}${misses ? ` (åktid ${fmtTime(race.time)})` : ''}`
@@ -291,28 +315,29 @@ function finish() {
 // ---------- Resultat, topplista och spöken ----------
 async function submitResult(time, misses, isBest) {
   const ghostStr = recorder ? recorder.encode() : '';
-  if (isBest && ghostStr) store.set(storeKey(fmt, 'ghost'), { time, g: ghostStr });
+  if (isBest && ghostStr) store.set(storeKey(courseCfg.id, fmt, 'ghost'), { time, g: ghostStr });
   if (mode === 'mp' && room) {
-    room.sendResult({ time, misses, raceId, progress: fmt.laps * LAP_LEN + FINISH_LEN });
+    room.sendResult({ time, misses, raceId, progress: fmt.laps * track.n + FINISH_LEN });
     renderWait();
   }
   if (!db) return;
   const name = me.name || 'Anonym';
   try {
     let ghostId = null;
-    const top = await db.topBy(boardPath(fmt), 'time', 1);
+    const top = await db.topBy(boardPath(courseCfg.id, fmt), 'time', 1);
     if (!top.length || time < top[0].time) ghostId = await db.push('ghosts', ghostStr);
-    await db.push(boardPath(fmt), { name, time, misses, ts: db.now(), ...(ghostId ? { ghost: ghostId } : {}) });
+    await db.push(boardPath(courseCfg.id, fmt), { name, time, misses, ts: db.now(), ...(ghostId ? { ghost: ghostId } : {}) });
   } catch (e) { console.warn('Kunde inte spara resultatet', e); }
   renderBoard($('r-board'), 10, time);
 }
 
-async function renderBoard(el, n, highlightTime = null, f = fmt) {
+async function renderBoard(el, n, highlightTime = null, f = fmt, cid = courseCfg.id) {
   if (!db) { el.innerHTML = ''; return; }
-  el.innerHTML = `<div class="res"><h3>Topplista ${f.name}</h3>Laddar …</div>`;
+  const title = `${f.name} · ${getCourse(cid).short}`;
+  el.innerHTML = `<div class="res"><h3>Topplista ${title}</h3>Laddar …</div>`;
   try {
-    const list = await db.topBy(boardPath(f), 'time', n);
-    el.innerHTML = `<div class="res"><h3>Topplista ${f.name}${db.online ? '' : ' (lokal)'}</h3>` +
+    const list = await db.topBy(boardPath(cid, f), 'time', n);
+    el.innerHTML = `<div class="res"><h3>Topplista ${title}${db.online ? '' : ' (lokal)'}</h3>` +
       (list.length ? list.map((r, i) =>
         `<div class="${highlightTime != null && Math.abs(r.time - highlightTime) < 0.001 ? 'me' : ''}"><span class="n">${i + 1}</span><span class="nm">${esc(r.name)}</span><span class="tm">${fmtTime(r.time)}</span><span class="tm">${r.misses} m</span></div>`
       ).join('') : '<p class="note">Inga resultat än</p>') + '</div>';
@@ -326,11 +351,11 @@ const esc = (t) => String(t ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<
 // Spöken för träning: eget personbästa + världens snabbaste
 async function loadGhosts() {
   ghosts = [];
-  const pb = store.get(storeKey(fmt, 'ghost'), null);
+  const pb = store.get(storeKey(courseCfg.id, fmt, 'ghost'), null);
   if (pb && pb.g) ghosts.push({ name: 'Ditt bästa', color: 0x9fd0ff, time: pb.time, g: decodeGhost(pb.g) });
   if (!db) return;
   try {
-    const top = await db.topBy(boardPath(fmt), 'time', 1);
+    const top = await db.topBy(boardPath(courseCfg.id, fmt), 'time', 1);
     if (top.length && top[0].ghost && (!pb || Math.abs(top[0].time - pb.time) > 0.01)) {
       const g = await db.get('ghosts/' + top[0].ghost);
       if (g) ghosts.push({ name: top[0].name, color: 0xffd23f, time: top[0].time, g: decodeGhost(g) });
@@ -341,10 +366,10 @@ async function loadGhosts() {
 // Mitt framsteg i meter (för placering och spöken)
 function myProgress() {
   if (!race) return 0;
-  if (state === 'arrive' || state === 'range' || state === 'penalty' || state === 'transit') return race.lap * LAP_LEN;
-  if (state === 'done' || state === 'ceremony') return fmt.laps * LAP_LEN + FINISH_LEN;
-  if (race.onStraight) return fmt.laps * LAP_LEN + race.finishDist;
-  return (race.lap - 1) * LAP_LEN + race.s;
+  if (state === 'arrive' || state === 'range' || state === 'penalty' || state === 'transit') return race.lap * track.n;
+  if (state === 'done' || state === 'ceremony') return fmt.laps * track.n + FINISH_LEN;
+  if (race.onStraight) return fmt.laps * track.n + race.finishDist;
+  return (race.lap - 1) * track.n + race.s;
 }
 // Extra avstånd som skickas med läget: meter på straffrundan eller upploppsrakan
 function mySubDist() {
@@ -377,7 +402,7 @@ function posOf(c) {
   if (c.st === 'm') { const p = course.finishPoint(c.pd); return { x: p[0], z: p[2] }; }
   if (c.st === 'r') return { x: course.rangePos[0], z: course.rangePos[1] };
   if (c.st === 'f' || c.done) return { x: course.stadium[0], z: course.stadium[1] };
-  const p = course.pointAt(c.progress % LAP_LEN);
+  const p = track.pointAt(c.progress % track.n);
   return { x: p[0], z: p[2] };
 }
 
@@ -457,7 +482,7 @@ async function enterRoom(code, create) {
   code = code.toUpperCase();
   if (!/^[A-Z]{4}$/.test(code)) { msg.textContent = 'Koden är fyra bokstäver'; return; }
   const r = new Room(db, code, me);
-  if (create) { await r.create(fmt.id); Room.cleanup(db); } // städa gamla rum i bakgrunden
+  if (create) { await r.create(fmt.id, courseCfg.id); Room.cleanup(db); } // städa gamla rum i bakgrunden
   else if (!(await r.exists())) { msg.textContent = `Hittar inget rum med koden ${code}`; return; }
   await r.join();
   room = r;
@@ -496,6 +521,7 @@ function onRoom(d) {
     raceId = d.raceId;
     mpStartLocal = performance.now() + (d.startAt - db.now());
     room.startRacing();
+    if ((d.course || 'grandbornand') !== courseCfg.id) console.warn('Rummets bana är inte laddad ännu');
     setFormat(d.format || 'sprint', false); // rummets gren
     newRace(Math.max(1, (d.startAt - db.now()) / 1000), d.startAt);
   }
@@ -510,10 +536,13 @@ function renderLobby() {
   const ps = room.players();
   const my = room.mine();
   const rf = getFormat(room.data?.format);
+  const rc = getCourse(room.data?.course);
+  if (rc.id !== courseCfg.id && !courseLoading) selectCourse(rc.id, false); // rummets bana
   if (rf.id !== fmt.id) setFormat(rf.id, false);
   const host = room.isHost();
   document.querySelectorAll('#l-fmt .fmt-btn').forEach((b) => { b.disabled = !host; b.classList.toggle('on', b.dataset.f === rf.id); });
-  $('l-fmt-desc').textContent = rf.desc + (host ? '' : ' · värden väljer gren');
+  document.querySelectorAll('#l-crs .fmt-btn').forEach((b) => { b.disabled = !host; b.classList.toggle('on', b.dataset.c === rc.id); });
+  $('l-fmt-desc').textContent = `${rc.name} · ${fmtDesc(rf)}` + (host ? '' : ' · värden väljer bana och gren');
   $('l-players').innerHTML = ps.map((p) => {
     const st = p.online === false ? 'frånkopplad' : p.status === 'racing' ? 'i loppet' : p.status === 'done' ? 'i mål' : p.ready ? 'Redo ✓' : 'väntar';
     return `<li><span class="dot" style="background:${COLOR_CSS(p.color)}"></span><span>${esc(p.name)}${p.id === me.id ? ' (du)' : ''}</span><span class="st ${p.ready ? 'ok' : ''}">${st}</span></li>`;
@@ -598,7 +627,7 @@ function update(dt) {
   }
 
   if (state === 'ski') {
-    const grade = race.onStraight ? 0 : course.gradeAt(race.s);
+    const grade = race.onStraight ? 0 : track.gradeAt(race.s);
     // Spurt på upploppet: takten drivs upp under de första ~25 m
     ski.sprint = race.onStraight ? Math.min(1, 0.35 + race.finishDist / 40) : 0;
     $('ski-ui').classList.toggle('sprint', ski.sprint > 0);
@@ -609,11 +638,11 @@ function update(dt) {
       if (race.finishDist >= FINISH_LEN) { race.finishDist = FINISH_LEN; finish(); }
     } else {
       race.s += ds;
-      if (race.s >= LAP_LEN) {
-        if (race.lap < fmt.laps) { race.s = LAP_LEN; enterRange(); }
+      if (race.s >= track.n) {
+        if (race.lap < fmt.laps) { race.s = track.n; enterRange(); }
         else {
           // Sista varvet: in på upploppsrakan mot målportalen
-          race.s = LAP_LEN;
+          race.s = track.n;
           race.onStraight = true;
           race.finishDist = 0;
           banner('Spurta!', `${FINISH_LEN} m kvar – staka så fort du kan!`, 1.6);
@@ -712,12 +741,12 @@ function placeSkier(dt) {
   } else {
     const idle = state === 'menu' || state === 'lobby' || !race;
     const s = idle ? 40 : race.s;
-    [x, y, z] = course.pointAt(s);
-    [tx, tz] = course.tangentAt(s);
+    [x, y, z] = track.pointAt(s);
+    [tx, tz] = track.tangentAt(s);
   }
   skier.root.position.set(x, y, z);
   skier.root.rotation.y = Math.atan2(tx, tz);
-  const grade = state === 'ski' && !race.onStraight ? course.gradeAt(race.s) : 0;
+  const grade = state === 'ski' && !race.onStraight ? track.gradeAt(race.s) : 0;
   if (ski.fallen > 0 && (state === 'ski' || state === 'penalty' || state === 'transit')) { mode = 'fall'; skier.fallT = 2.6 - ski.fallen; }
   skier.poleOn = ski.lastPole !== false;
   skier.edgeOn = ski.lastEdge !== false;
@@ -755,8 +784,8 @@ function updateHud() {
   if (state === 'penalty') dist = `Straffrunda: ${Math.max(0, Math.ceil(race.penaltyLeft))} m`;
   else if (state === 'transit') dist = `${Math.max(0, Math.ceil(transit.path.len - transit.d))} m ${transit.label}`;
   else if (race.onStraight) dist = `${Math.max(0, Math.ceil(FINISH_LEN - race.finishDist))} m till mål`;
-  else if (race.lap < fmt.laps) dist = `${Math.max(0, Math.ceil(LAP_LEN - race.s))} m till vallen`;
-  else dist = `${Math.max(0, Math.ceil(LAP_LEN - race.s + FINISH_LEN))} m till mål`;
+  else if (race.lap < fmt.laps) dist = `${Math.max(0, Math.ceil(track.n - race.s))} m till vallen`;
+  else dist = `${Math.max(0, Math.ceil(track.n - race.s + FINISH_LEN))} m till mål`;
   $('h-dist').textContent = dist;
   const bpm = Math.round(ski.pulse);
   $('h-bpm').textContent = bpm;
@@ -829,7 +858,7 @@ function arenaCheerLevel() {
   if (state === 'arrive' || state === 'range') return 0.12;
   if (state === 'penalty' || state === 'transit') return 0.3;
   if (race.onStraight) return 0.75 + 0.35 * (race.finishDist / FINISH_LEN); // förbi läktaren mot mål
-  const toStadium = LAP_LEN - race.s;          // meter kvar till stadion
+  const toStadium = track.n - race.s;          // meter kvar till stadion
   const coming = Math.max(0, 1 - toStadium / 450);   // börjar ca 450 m innan
   const leaving = Math.max(0, 1 - race.s / 180);     // tonar bort efter starten/vallen
   const sinceStart = race.time < 6 && race.lap === 1 ? 1 - race.time / 6 : 0;
@@ -881,9 +910,9 @@ function frame(now) {
     if (state === 'penalty') { const p = course.penaltyPoint(race.penaltyDist); mx = p[0]; mz = p[2]; }
     else if (state === 'transit' && transit) { const p = transit.path.at(transit.d); mx = p.x; mz = p.z; }
     else if (race.onStraight) { const p = course.finishPoint(race.finishDist); mx = p[0]; mz = p[2]; }
-    else { const p = course.pointAt(race.s); mx = p[0]; mz = p[2]; }
+    else { const p = track.pointAt(race.s); mx = p[0]; mz = p[2]; }
     minimap.draw({ x: mx, z: mz }, dots, `Varv ${race.lap}/${fmt.laps}`);
-    profile.draw(state === 'penalty' || state === 'transit' ? course.n : race.s, race.lap < fmt.laps);
+    profile.draw(state === 'penalty' || state === 'transit' ? track.n : race.s, race.lap < fmt.laps);
   } else if (state === 'arrive') {
     minimap.draw({ x: course.rangePos[0], z: course.rangePos[1] }, dots, `Varv ${race.lap}/${fmt.laps}`);
   }
@@ -1022,8 +1051,8 @@ setInterval(() => {
 
 // ---------- Meny ----------
 function showBest() {
-  const b = store.get(storeKey(fmt, 'best'), null);
-  $('best').textContent = b == null ? '' : `Personbästa ${fmt.name}: ${fmtTime(b)}`;
+  const b = store.get(storeKey(courseCfg.id, fmt, 'best'), null);
+  $('best').textContent = b == null ? '' : `Personbästa ${fmt.name}, ${courseCfg.short}: ${fmtTime(b)}`;
 }
 const fmtPenalty = (sec) => `${Math.floor(sec / 60)}:${String(Math.round(sec % 60)).padStart(2, '0')}`;
 
@@ -1031,16 +1060,44 @@ const fmtPenalty = (sec) => `${Math.floor(sec / 60)}:${String(Math.round(sec % 6
 function setFormat(id, save = true) {
   fmt = getFormat(id);
   if (save) store.set('format', fmt.id);
+  const t = course.lapView(course.lapLens[fmt.id]);
+  if (t !== track || !minimap || minimap.course !== track) { track = t; minimap = new Minimap($('minimap'), track); profile = new Profile($('profile'), track); }
   document.querySelectorAll('#fmt-row .fmt-btn').forEach((b) => b.classList.toggle('on', b.dataset.f === fmt.id));
-  $('fmt-desc').textContent = fmt.desc;
-  $('menu-sub').textContent = `${fmt.name} · Le Grand-Bornand · dam ${fmt.laps} × 2 km`;
+  document.querySelectorAll('#crs-row .fmt-btn').forEach((b) => b.classList.toggle('on', b.dataset.c === courseCfg.id));
+  $('fmt-desc').textContent = `${kmText(fmt, track.n)} · ${fmt.desc}`;
+  $('menu-sub').textContent = `${fmt.name} · ${courseCfg.name} · ${kmText(fmt, track.n)}`;
   showBest();
 }
+const fmtDesc = (f) => `${kmText(f, course.lapLens[f.id])} · ${f.desc}`;
+
+// ---------- Val av bana ----------
+let courseLoading = null;
+async function selectCourse(id, save = true) {
+  const cfg = getCourse(id);
+  if (save) store.set('course', cfg.id);
+  if (cfg.id === courseCfg.id && course) { setFormat(fmt.id, false); return; }
+  if (courseLoading) await courseLoading;
+  if (cfg.id === courseCfg.id) { setFormat(fmt.id, false); return; }
+  $('loading').classList.remove('hidden');
+  await new Promise((r) => setTimeout(r, 30)); // låt "Bygger banan …" synas
+  courseLoading = buildCourse(cfg);
+  await courseLoading;
+  courseLoading = null;
+  $('loading').classList.add('hidden');
+  camInit = false;
+  setFormat(fmt.id, false);
+  if (mode !== 'mp') await loadGhosts();
+}
+document.querySelectorAll('#crs-row .fmt-btn, #l-crs .fmt-btn').forEach((b) => b.addEventListener('click', async () => {
+  if (room && mode === 'mp' && !room.isHost()) return;
+  await selectCourse(b.dataset.c);
+  if (room && mode === 'mp' && room.isHost()) room.setCourse(courseCfg.id);
+}));
 document.querySelectorAll('#fmt-row .fmt-btn, #l-fmt .fmt-btn').forEach((b) => b.addEventListener('click', () => {
   setFormat(b.dataset.f);
   if (room && mode === 'mp' && room.isHost()) room.setFormat(fmt.id);
 }));
-showBest();
+setFormat(fmt.id, false);
 
 $('opt-sound').addEventListener('change', (e) => { opts.sound = e.target.checked; store.set('sound', opts.sound); sfx.setEnabled(opts.sound); });
 $('opt-gyro').addEventListener('change', (e) => { opts.gyro = e.target.checked; store.set('gyro', opts.gyro); });
@@ -1148,12 +1205,16 @@ $('btn-join').addEventListener('click', async () => { await prepare(); enterRoom
 $('in-code').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('btn-join').click(); });
 $('btn-ready').addEventListener('click', () => { if (room) room.setReady(!room.mine()?.ready); });
 $('btn-leave').addEventListener('click', toMenu);
-$('btn-board').addEventListener('click', () => { $('board').classList.remove('hidden'); showBoardTab(fmt.id); });
-function showBoardTab(id) {
-  document.querySelectorAll('#b-tabs .fmt-btn').forEach((b) => b.classList.toggle('on', b.dataset.f === id));
-  renderBoard($('b-list'), 20, null, getFormat(id));
+$('btn-board').addEventListener('click', () => { $('board').classList.remove('hidden'); showBoardTab(fmt.id, courseCfg.id); });
+let boardSel = { f: 'sprint', c: 'grandbornand' };
+function showBoardTab(f = boardSel.f, c = boardSel.c) {
+  boardSel = { f, c };
+  document.querySelectorAll('#b-tabs .fmt-btn').forEach((b) => b.classList.toggle('on', b.dataset.f === f));
+  document.querySelectorAll('#b-crs .fmt-btn').forEach((b) => b.classList.toggle('on', b.dataset.c === c));
+  renderBoard($('b-list'), 20, null, getFormat(f), c);
 }
-document.querySelectorAll('#b-tabs .fmt-btn').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); showBoardTab(b.dataset.f); }));
+document.querySelectorAll('#b-tabs .fmt-btn').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); showBoardTab(b.dataset.f, boardSel.c); }));
+document.querySelectorAll('#b-crs .fmt-btn').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); showBoardTab(boardSel.f, b.dataset.c); }));
 $('btn-board-close').addEventListener('click', () => $('board').classList.add('hidden'));
 
 resize();
@@ -1163,7 +1224,7 @@ requestAnimationFrame(frame);
 window.__game = {
   get state() { return state; }, get race() { return race; }, ski, course, rivals, get shooting() { return shooting; },
   get room() { return room; }, get db() { return db; }, get ghosts() { return ghosts; }, me,
-  ceremony, camera, renderer, useLocalDb: async () => { const m = await import('./net.js?v=202611182008'); db = await m.connectLocal(); },
+  ceremony, camera, renderer, useLocalDb: async () => { const m = await import('./net.js?v=202611182028'); db = await m.connectLocal(); },
   step: (dt) => update(dt), start: newRace,
   debugCeremony: (list) => { state = 'ceremony'; ceremony.start(list); showUI(); },
 };

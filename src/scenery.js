@@ -2,7 +2,7 @@
 // pistat spår (manchesterränder + klassiska spår), markeringspinnar, staket,
 // publik och banderoller vid stadion. Allt är instansierat eller små canvas-texturer.
 import * as THREE from 'three';
-import { FINISH_LEN, PENALTY_LEN } from './course.js?v=202611182008';
+import { FINISH_LEN, PENALTY_LEN } from './course.js?v=202611182028';
 
 // ---------- Pistat spår ----------
 // Spårbädden är lite gråblå och tydligt randig (manchester), med en upphöjd
@@ -160,6 +160,13 @@ export function buildTrack(scene, course) {
     scene.add(ribbon(tp, 3.4, tex, 9, 0));
   }
 
+  // Genvägen för det kortare varvet (masstart): pistad som spåret, med pinnar
+  for (const sc of course.shortcuts.values()) {
+    const sp = [];
+    for (let d = 0; d <= sc.len; d += 2) { const q = sc.at(d); sp.push({ x: q.x, y: q.y + 0.025, z: q.z, tx: q.tx, tz: q.tz, s: d }); }
+    scene.add(ribbon(sp, 4.6, tex, 9, 0.8));
+  }
+
   // Markeringspinnar längs spåret (röda till vänster, blå till höger) var 25:e meter
   const poleGeo = new THREE.CylinderGeometry(0.025, 0.03, 1.3, 5).translate(0, 0.65, 0);
   const red = new THREE.InstancedMesh(poleGeo, new THREE.MeshStandardMaterial({ color: 0xd8312f, roughness: 0.5 }), 200);
@@ -172,6 +179,13 @@ export function buildTrack(scene, course) {
     // ingen pinne mitt i en korsande övergång
     m.makeTranslation(x - tz * 3.3, course.inLane(x - tz * 3.3, z + tx * 3.3, 2) ? -50 : y, z + tx * 3.3); red.setMatrixAt(i, m);
     m.makeTranslation(x + tz * 3.3, course.inLane(x + tz * 3.3, z - tx * 3.3, 2) ? -50 : y, z - tx * 3.3); blue.setMatrixAt(i, m);
+  }
+  for (const sc of course.shortcuts.values()) {
+    for (let d = 30; d < sc.len - 30 && i < 200; d += 25, i++) {
+      const q = sc.at(d);
+      m.makeTranslation(q.x - q.tz * 3, q.y, q.z + q.tx * 3); red.setMatrixAt(i, m);
+      m.makeTranslation(q.x + q.tz * 3, q.y, q.z - q.tx * 3); blue.setMatrixAt(i, m);
+    }
   }
   red.count = blue.count = i;
   for (const im of [red, blue]) { im.castShadow = true; scene.add(im); }
@@ -198,8 +212,8 @@ export function buildStadiumDetails(scene, course) {
   // Staket med banderoller på båda sidor om spåret ±120 m runt stadion
   const panels = [
     bannerTexture('BIATHLON', '#1d4f91', '#ffffff'),
-    bannerTexture('SPRINT 6 KM', '#ffd23f', '#0b1622'),
-    bannerTexture('LE GRAND-BORNAND', '#d8312f', '#ffffff'),
+    bannerTexture('SKIDSKYTTE', '#ffd23f', '#0b1622'),
+    bannerTexture((course.cfg?.name || 'LE GRAND-BORNAND').toUpperCase(), '#d8312f', '#ffffff'),
   ].map((t) => new THREE.MeshStandardMaterial({ map: t, roughness: 0.7, side: THREE.DoubleSide }));
   const panelGeo = new THREE.PlaneGeometry(4.6, 0.6);
   const inst = panels.map((mat) => new THREE.InstancedMesh(panelGeo, mat, 90));
@@ -249,13 +263,19 @@ export function buildStadiumDetails(scene, course) {
   const hats = [0xd8312f, 0xffffff, 0x1f5fbf, 0x222831, 0xffd23f].map((c) => new THREE.Color(c));
   const m = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(1, 1, 1), p = new THREE.Vector3();
   const crowd = [];
-  const flagTex = [
-    ['#006aa7', '#fecc02', 'cross'], ['#0055a4', '#ffffff', '#ef4135'], ['#ba0c2f', '#ffffff', 'cross-no'],
-    ['#000000', '#dd0000', '#ffce00', 'h'], ['#009246', '#ffffff', '#ce2b37'],
-  ].map(flagTexture);
+  // Flaggor efter värdland: värdlandets flagga dominerar, grannländer och andra skidskyttenationer finns med
+  const FLAG_SPECS = {
+    SE: ['#006aa7', '#fecc02', 'cross'], FR: ['#0055a4', '#ffffff', '#ef4135'], NO: ['#ba0c2f', '#ffffff', 'cross-no'],
+    DE: ['#000000', '#dd0000', '#ffce00', 'h'], IT: ['#009246', '#ffffff', '#ce2b37'], AT: ['#c8102e', '#ffffff', '#c8102e', 'h'],
+    FI: ['#ffffff', '#003580', 'cross'],
+  };
+  const weights = Object.entries(course.env?.flags || { SE: 1, FR: 1, NO: 1, DE: 1, IT: 1 });
+  const flagTex = weights.map(([c]) => flagTexture(FLAG_SPECS[c] || FLAG_SPECS.SE));
+  const wTotal = weights.reduce((a, [, w]) => a + w, 0);
+  const pickFlag = () => { let r = Math.random() * wTotal; for (let i = 0; i < weights.length; i++) { r -= weights[i][1]; if (r <= 0) return i; } return 0; };
   const flagGeo = new THREE.PlaneGeometry(0.75, 0.5).translate(0.4, 0, 0);
   const flagMats = flagTex.map((t) => new THREE.MeshStandardMaterial({ map: t, side: THREE.DoubleSide, roughness: 0.8 }));
-  const flags = flagMats.map((mat) => new THREE.InstancedMesh(flagGeo, mat, 40));
+  const flags = flagMats.map((mat, i) => new THREE.InstancedMesh(flagGeo, mat, Math.max(10, Math.ceil(160 * weights[i][1] / wTotal) + 10)));
   const flagCounts = flags.map(() => 0);
   const flagData = [];
   let k = 0;
@@ -273,8 +293,8 @@ export function buildStadiumDetails(scene, course) {
     crowd.push({ i: k, x, y: yy, z, q: q.clone(), s, ph: Math.random() * 6 });
     // var åttonde viftar med flagga
     if (Math.random() < 0.13) {
-      const f = Math.floor(Math.random() * flags.length);
-      if (flagCounts[f] < 40) flagData.push({ f, i: flagCounts[f]++, x, y: yy + 1.75 * s, z, yaw: facing, ph: Math.random() * 6 });
+      const f = pickFlag();
+      if (flagCounts[f] < flags[f].instanceMatrix.count) flagData.push({ f, i: flagCounts[f]++, x, y: yy + 1.75 * s, z, yaw: facing, ph: Math.random() * 6 });
     }
     k++;
   };
@@ -412,7 +432,7 @@ function grandstand(scene, course) {
   group.add(roof);
   // reklamskylt längs läktarens framkant
   const front = new THREE.Mesh(new THREE.PlaneGeometry(G.width, 0.7),
-    new THREE.MeshStandardMaterial({ map: bannerTexture('LE GRAND-BORNAND · BIATHLON', '#0b2a55', '#ffd23f'), roughness: 0.7, side: THREE.DoubleSide }));
+    new THREE.MeshStandardMaterial({ map: bannerTexture(`${(course.cfg?.short || 'LE GRAND-BORNAND').toUpperCase()} · BIATHLON`, '#0b2a55', '#ffd23f'), roughness: 0.7, side: THREE.DoubleSide }));
   front.position.set(0, 0.55, -0.02 * sideSign);
   front.rotation.y = sideSign > 0 ? Math.PI : 0; // texten vänd mot spåret
   group.add(front);
