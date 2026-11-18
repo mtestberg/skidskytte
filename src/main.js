@@ -118,6 +118,7 @@ function newRace(countSeconds = 3, seed = null) {
   ski.reset();
   ski.assistAllowed = true;
   wind = new Wind(seed == null ? Math.random : seeded(seed));
+  $('ski-ui').classList.remove('sprint');
   race = { lap: 1, s: 0, time: 0, penaltyLeft: 0, penaltyDist: 0, onStraight: false, finishDist: 0, misses: [], splits: [], shootTime: [], shootStart: 0 };
   state = 'countdown';
   countdown = countSeconds - 0.001;
@@ -517,6 +518,9 @@ function update(dt) {
 
   if (state === 'ski') {
     const grade = race.onStraight ? 0 : course.gradeAt(race.s);
+    // Spurt på upploppet: takten drivs upp under de första ~25 m
+    ski.sprint = race.onStraight ? Math.min(1, 0.35 + race.finishDist / 40) : 0;
+    $('ski-ui').classList.toggle('sprint', ski.sprint > 0);
     ski.update(dt, grade);
     const ds = ski.v * dt * TIME_SCALE;
     if (race.onStraight) {
@@ -531,7 +535,7 @@ function update(dt) {
           race.s = LAP_LEN;
           race.onStraight = true;
           race.finishDist = 0;
-          banner('Upploppet!', `${FINISH_LEN} m kvar – spurta!`, 1.6);
+          banner('Spurta!', `${FINISH_LEN} m kvar – staka så fort du kan!`, 1.6);
           if (opts.sound) sfx.cheer(1, 3);
         }
       }

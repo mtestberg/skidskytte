@@ -52,6 +52,7 @@ export class Skiing {
     this.assistAllowed = true; // av under straffrundan
     this.wildStreak = 0;   // tryck utanför pendeln i rad
     this.fallen = 0;       // sekunder kvar av vurpan
+    this.sprint = 0;       // 0…1 på upploppet: snabbare pendel, högre toppfart, sparad energi lönar sig
     // OBS: onBeat/onPush/onFall sätts av main.js och får INTE nollställas här,
     // annars tappas ljud och vurpa-meddelanden vid varje nytt lopp.
   }
@@ -59,7 +60,8 @@ export class Skiing {
   period(grade) {
     // Långsam takt i utförsbackar, snabb i uppförsbackar
     const f = clamp(0.8 + grade * 5, 0.45, 1.35); // slag per sekund
-    return 1 / f;
+    // Spurt: takten ökar till drygt dubbla (≈ 1,8 slag/s på flacken)
+    return 1 / (f * (1 + 1.25 * this.sprint));
   }
 
   // Pendelns vinkel −1…1 (0 = mitten / träffzon)
@@ -143,13 +145,16 @@ export class Skiing {
       q = p != null ? qp : qe;
       power = q * 0.45;
     }
-    // Skjut framåt (mindre effekt vid hög fart)
-    this.v += 2.2 * power * this.strength() * Math.max(0, 1 - this.v / 16);
+    // Skjut framåt (mindre effekt vid hög fart). I spurten högre tak, och
+    // energin man sparat ger kraft: 100 % kvar ≈ 25 % starkare tag än 0 %.
+    const sp = this.sprint;
+    const str = this.strength() * (1 - sp) + (0.85 + 0.25 * this.energyFrac) * sp;
+    this.v += 2.2 * power * str * Math.max(0, 1 - this.v / (16 + 6 * sp));
     // Felträff → längre till nästa pendelmatch
     this.nextBeat += (1 - q) * 0.5 * this.T;
     // Puls: ansträngning, mer i uppför, mer om slarvigt
     const up = Math.max(0, this.grade);
-    this.pulse += 5.0 * (1 + up * 3.5) * (0.6 + 0.4 * power) * (1.5 - 0.8 * q) * this.pulseGain() * clamp((205 - this.pulse) / 55, 0.15, 1);
+    this.pulse += 5.0 * (1 + up * 3.5) * (1 + 0.3 * this.sprint) * (0.6 + 0.4 * power) * (1.5 - 0.8 * q) * this.pulseGain() * clamp((205 - this.pulse) / 55, 0.15, 1);
     this.pulse = Math.min(PULSE_MAX, this.pulse);
     // Energi: grundkostnad (mer i uppför) + extra för dålig träff
     this.spend(0.9 * (1 + up * 4) * (0.7 + 0.3 * power) + (1 - q) * 1.0);
@@ -212,7 +217,7 @@ export class Skiing {
     // Fysik: gravitation längs backen, friktion, luftmotstånd
     const sinA = grade / Math.sqrt(1 + grade * grade);
     const a = -9.81 * sinA - 0.28 - 0.011 * this.v * this.v;
-    this.v = clamp(this.v + a * dt, 0, 18);
+    this.v = clamp(this.v + a * dt, 0, 18 + 4 * this.sprint);
 
     // Puls återhämtar sig vid glid och i utförsbackar (långsammare med låg energi)
     const down = grade < -0.02;
