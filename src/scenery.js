@@ -5,31 +5,46 @@ import * as THREE from 'three';
 import { FINISH_LEN, PENALTY_LEN } from './course.js';
 
 // ---------- Pistat spår ----------
+// Spårbädden är lite gråblå och tydligt randig (manchester), med en upphöjd
+// snövall längs kanterna som pistmaskinen lämnar. Det gör att spåret syns
+// tydligt mot den orörda snön runt omkring.
 function corduroyTexture() {
   const c = document.createElement('canvas');
   c.width = 128; c.height = 256;
   const g = c.getContext('2d');
-  g.fillStyle = '#e4ebf2';
+  g.fillStyle = '#d6e0ea';
   g.fillRect(0, 0, 128, 256);
-  // manchesterränder längs spåret
-  for (let x = 0; x < 128; x += 4) {
-    g.fillStyle = x % 8 === 0 ? 'rgba(135,158,188,0.42)' : 'rgba(255,255,255,0.6)';
+  // manchesterränder längs spåret, tydligare än förut
+  for (let x = 6; x < 122; x += 4) {
+    g.fillStyle = 'rgba(110,135,168,0.42)';
     g.fillRect(x, 0, 2, 256);
+    g.fillStyle = 'rgba(255,255,255,0.55)';
+    g.fillRect(x + 2, 0, 1, 256);
+  }
+  // små ojämnheter så att ytan inte ser plastig ut
+  for (let i = 0; i < 260; i++) {
+    g.fillStyle = `rgba(${Math.random() < 0.5 ? '255,255,255' : '120,140,170'},${0.08 + Math.random() * 0.1})`;
+    g.fillRect(6 + Math.random() * 116, Math.random() * 256, 1 + Math.random() * 3, 1 + Math.random() * 6);
   }
   // klassiska spår längs kanterna
-  for (const x of [10, 22, 106, 118]) {
-    g.fillStyle = 'rgba(105,128,158,0.7)';
+  for (const x of [14, 26, 102, 114]) {
+    g.fillStyle = 'rgba(85,108,140,0.8)';
     g.fillRect(x - 3, 0, 6, 256);
-    g.fillStyle = 'rgba(255,255,255,0.7)';
+    g.fillStyle = 'rgba(255,255,255,0.8)';
     g.fillRect(x - 4, 0, 1, 256);
   }
-  // skärspår (skating) – svaga diagonala streck
-  g.strokeStyle = 'rgba(140,160,185,0.18)';
+  // skärspår (skating) i mitten
+  g.strokeStyle = 'rgba(110,130,160,0.28)';
   g.lineWidth = 2;
   for (let y = 0; y < 256; y += 32) {
-    g.beginPath(); g.moveTo(40, y); g.lineTo(64, y + 28); g.stroke();
-    g.beginPath(); g.moveTo(88, y + 14); g.lineTo(64, y + 42); g.stroke();
+    g.beginPath(); g.moveTo(42, y); g.lineTo(64, y + 28); g.stroke();
+    g.beginPath(); g.moveTo(86, y + 14); g.lineTo(64, y + 42); g.stroke();
   }
+  // packad kant (mörkare linje) och vit snövall längst ut
+  g.fillStyle = 'rgba(80,100,130,0.55)';
+  g.fillRect(3, 0, 3, 256); g.fillRect(122, 0, 3, 256);
+  g.fillStyle = '#f7f9fc';
+  g.fillRect(0, 0, 3, 256); g.fillRect(125, 0, 3, 256);
   const t = new THREE.CanvasTexture(c);
   t.wrapS = THREE.ClampToEdgeWrapping;
   t.wrapT = THREE.RepeatWrapping;
@@ -38,16 +53,37 @@ function corduroyTexture() {
   return t;
 }
 
-function ribbon(points, width, tex, vScale) {
+// Tvärsnitt: [sidoförskjutning (m från kant, + = utåt), höjd (m), u]
+const PROFILE = [
+  [0.85, -0.07, 0.0],   // vallens fot ute i orörd snö
+  [0.28, 0.15, 0.0],    // vallens topp
+  [0.02, 0.05, 0.012],  // kanten ner mot bädden
+  [-0.12, 0.03, 0.035], // packad kant
+];
+
+function ribbon(points, width, tex, vScale, lip = 1) {
   // points: [{x,y,z,tx,tz,s}]
   const n = points.length;
-  const pos = new Float32Array(n * 2 * 3), uv = new Float32Array(n * 2 * 2);
+  // vänster: PROFILE i ordning, höger: spegelvänd
+  const cross = [];
+  const prof = PROFILE.map(([o, h, u]) => [o * (0.4 + 0.6 * lip), h > 0.06 ? 0.04 + (h - 0.04) * lip : h, u]);
+  for (const [o, h, u] of prof) cross.push([-(width / 2 + o), h, u]);
+  for (const [o, h, u] of [...prof].reverse()) cross.push([width / 2 + o, h, 1 - u]);
+  const m = cross.length;
+  const pos = new Float32Array(n * m * 3), uv = new Float32Array(n * m * 2);
   const idx = [];
   points.forEach((p, i) => {
     const nx = -p.tz, nz = p.tx;
-    pos.set([p.x + nx * width / 2, p.y, p.z + nz * width / 2, p.x - nx * width / 2, p.y, p.z - nz * width / 2], i * 6);
-    uv.set([0, p.s / vScale, 1, p.s / vScale], i * 4);
-    if (i < n - 1) { const a = i * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
+    cross.forEach(([off, h, u], j) => {
+      pos.set([p.x + nx * off, p.y + h, p.z + nz * off], (i * m + j) * 3);
+      uv.set([u, p.s / vScale], (i * m + j) * 2);
+    });
+    if (i < n - 1) {
+      for (let j = 0; j < m - 1; j++) {
+        const a = i * m + j, b = a + m;
+        idx.push(a, b, a + 1, a + 1, b, b + 1);
+      }
+    }
   });
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
@@ -55,12 +91,12 @@ function ribbon(points, width, tex, vScale) {
   geo.setIndex(idx);
   geo.computeVertexNormals();
   const mat = new THREE.MeshStandardMaterial({
-    map: tex, roughness: 0.8, metalness: 0,
+    map: tex, roughness: 0.75, metalness: 0, side: THREE.DoubleSide,
     polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
   });
-  const m = new THREE.Mesh(geo, mat);
-  m.receiveShadow = true;
-  return m;
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.receiveShadow = true;
+  return mesh;
 }
 
 export function buildTrack(scene, course) {
@@ -79,7 +115,7 @@ export function buildTrack(scene, course) {
     const [tx, tz] = course.penaltyTangent(d);
     pp.push({ x, y: y + 0.03, z, tx, tz, s: d });
   }
-  scene.add(ribbon(pp, 3.4, tex, 9));
+  scene.add(ribbon(pp, 3.4, tex, 9, 0.6));
   // Röda avlånga konor runt straffrundan (innerkant och ytterkant), med vitt reflexband
   {
     const coneGeo = new THREE.ConeGeometry(0.13, 0.75, 8).translate(0, 0.375, 0);
@@ -121,7 +157,7 @@ export function buildTrack(scene, course) {
       const q = path.at(d);
       tp.push({ x: q.x, y: q.y + 0.032 + (k === 'arrive' ? 0.002 : 0), z: q.z, tx: q.tx, tz: q.tz, s: d });
     }
-    scene.add(ribbon(tp, 3.4, tex, 9));
+    scene.add(ribbon(tp, 3.4, tex, 9, 0));
   }
 
   // Markeringspinnar längs spåret (röda till vänster, blå till höger) var 25:e meter

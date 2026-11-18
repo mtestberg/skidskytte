@@ -9,6 +9,7 @@ import { Wind } from './wind.js';
 import { connect } from './net.js';
 import { Room, makeCode, makeId, standings, GhostRecorder, decodeGhost, ghostAt, COLOR_CSS } from './mp.js';
 import { Ceremony } from './ceremony.js';
+import { Rivals } from './rivals.js';
 import * as sfx from './audio.js';
 
 const $ = (id) => document.getElementById(id);
@@ -50,6 +51,7 @@ scene.add(sun, sun.target);
 // Riktig bana om data/course.json finns, annars procedurell
 const course = new Course(await loadCourseData());
 const world = buildWorld(scene, course);
+const rivals = new Rivals(scene, course);
 let wind = new Wind();
 const skier = buildSkier();
 skier.root.traverse((o) => { if (o.isMesh) o.castShadow = true; });
@@ -209,7 +211,8 @@ function startShooting() {
   renderShots();
   showUI();
   resize();
-  gyroRef = null;
+  gyroRef = null; // nytt neutralläge för varje skjutning
+  gyroVel.x = gyroVel.y = 0;
 }
 
 function leaveRange() {
@@ -341,7 +344,7 @@ function competitors() {
     return room.players()
       .filter((p) => p.id !== me.id && (p.status === 'racing' || (p.status === 'done' && p.result?.raceId === raceId)))
       .map((p) => ({
-        name: p.name, color: p.color,
+        id: p.id, name: p.name, color: p.color,
         done: p.status === 'done', time: p.result?.time ?? 0,
         progress: p.live?.p ?? 0, st: p.live?.st ?? 's', pd: p.live?.pd ?? 0,
       }));
@@ -766,6 +769,7 @@ function frame(now) {
     return; // 3D är dold under kikaren – spara batteri
   }
   if (state === 'ceremony') {
+    if (rivals.map.size) rivals.clear();
     ceremony.update(dt, camera);
     const W = window.innerWidth, H = window.innerHeight;
     $('c-labels').innerHTML = ceremony.labels(camera, W, H)
@@ -779,6 +783,12 @@ function frame(now) {
   }
   placeSkier(dt);
   const others = (race && state !== 'menu' && state !== 'lobby') ? competitors() : [];
+  // andra spelare som åkare i 3D (multiplayer)
+  if (rivals) {
+    if (window.__rivalList) rivals.update(dt, window.__rivalList(), now / 1000, camera.position); // testhake
+    else if (mode === 'mp' && race && state !== 'menu' && state !== 'lobby') rivals.update(dt, others, now / 1000, camera.position);
+    else if (rivals.map.size) rivals.clear();
+  }
   const dots = others.map((c) => ({ ...posOf(c), color: COLOR_CSS(c.color) }));
   if (race && state !== 'menu') updatePlace(others);
   if (state === 'ski' || state === 'penalty' || state === 'countdown' || state === 'transit') {
@@ -844,24 +854,51 @@ scope.addEventListener('pointermove', (e) => {
 });
 const endDrag = (e) => { if (e.pointerId === dragId) dragId = null; };
 scope.addEventListener('pointerup', endDrag);
+scope.addEventListener('dblclick', () => { gyroRef = null; gyroVel.x = gyroVel.y = 0; });
 scope.addEventListener('pointercancel', endDrag);
 
-// Gyro (valbart)
-let gyroRef = null;
+// Gyro (valbart): lutningen styr siktets FART (som en joystick).
+// Läget när skyttet börjar är neutralt. Luta åt vänster/höger (som en ratt) för att
+// flytta siktet i sidled, luta överkanten bakåt/framåt för höjdled. Rätar man upp
+// telefonen igen stannar siktet där det är. Lite lutning = långsamt och exakt,
+// mycket lutning = snabbt till nästa tavla.
+let gyroRef = null;               // neutralt läge { roll, pitch }
+const gyroVel = { x: 0, y: 0 };   // mm/s, utjämnat
+let gyroLast = 0;
+const GYRO_DEAD = 2.5;            // grader utan rörelse kring neutralläget
+const tiltSpeed = (deg, k, max) => {
+  const a = Math.abs(deg) - GYRO_DEAD;
+  if (a <= 0) return 0;
+  return Math.sign(deg) * Math.min(max, k * Math.pow(a, 1.45));
+};
 window.addEventListener('deviceorientation', (e) => {
-  if (!opts.gyro || state !== 'range' || !shooting || e.alpha == null) return;
-  const angle = (screen.orientation && screen.orientation.angle) || window.orientation || 0;
-  const landscape = Math.abs(angle) === 90 || angle === 270;
-  const h = e.alpha, v = landscape ? e.gamma * (angle === 90 ? 1 : -1) : e.beta;
-  if (gyroRef) {
-    let dh = h - gyroRef.h;
-    if (dh > 180) dh -= 360;
-    if (dh < -180) dh += 360;
-    const dv = v - gyroRef.v;
-    if (Math.abs(dv) < 30) shooting.moveAim(-dh * 7, dv * 7);
-  }
-  gyroRef = { h, v };
+  if (!opts.gyro || state !== 'range' || !shooting || e.beta == null || e.gamma == null) return;
+  // Världens "upp" i telefonens koordinater (oberoende av kompassriktning och skärmläge)
+  const b = e.beta * Math.PI / 180, g = e.gamma * Math.PI / 180;
+  const ux = -Math.cos(b) * Math.sin(g), uy = Math.sin(b), uz = Math.cos(b) * Math.cos(g);
+  if (Math.hypot(ux, uy) < 0.2) return; // telefonen ligger platt: ingen ratt-vinkel
+  const roll = Math.atan2(ux, uy) * 180 / Math.PI;   // vridning i skärmens plan (ratt)
+  const pitch = Math.asin(Math.max(-1, Math.min(1, uz))) * 180 / Math.PI; // hur mycket skärmen pekar uppåt
+  if (!gyroRef) { gyroRef = { roll, pitch }; gyroVel.x = gyroVel.y = 0; return; }
+  let dr = roll - gyroRef.roll;
+  if (dr > 180) dr -= 360;
+  if (dr < -180) dr += 360;
+  const dp = pitch - gyroRef.pitch;
+  // vänster sida ner (moturs) → siktet åt vänster; överkanten bakåt → siktet uppåt
+  const tx = -tiltSpeed(dr, 14, 520);
+  const ty = -tiltSpeed(dp, 9, 300);
+  gyroVel.x += (tx - gyroVel.x) * 0.35;
+  gyroVel.y += (ty - gyroVel.y) * 0.35;
+  if (Math.abs(tx) < 1e-6) gyroVel.x *= 0.3; // rätar man upp stannar siktet direkt
+  if (Math.abs(ty) < 1e-6) gyroVel.y *= 0.3;
 });
+setInterval(() => {
+  const now = performance.now();
+  const dt = Math.min(0.05, (now - gyroLast) / 1000);
+  gyroLast = now;
+  if (!opts.gyro || state !== 'range' || !shooting || !gyroRef) return;
+  if (gyroVel.x || gyroVel.y) shooting.moveAim(gyroVel.x * dt, gyroVel.y * dt);
+}, 16);
 
 // Tangentbord (dator)
 const keys = new Set();
@@ -953,7 +990,7 @@ requestAnimationFrame(frame);
 
 // För automatiska tester
 window.__game = {
-  get state() { return state; }, get race() { return race; }, ski, course, get shooting() { return shooting; },
+  get state() { return state; }, get race() { return race; }, ski, course, rivals, get shooting() { return shooting; },
   get room() { return room; }, get db() { return db; }, get ghosts() { return ghosts; }, me,
   ceremony, camera, renderer, useLocalDb: async () => { const m = await import('./net.js'); db = await m.connectLocal(); },
   step: (dt) => update(dt), start: newRace,
