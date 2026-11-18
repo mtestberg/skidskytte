@@ -88,6 +88,16 @@ export function buildTrack(scene, course) {
     fp.push({ x, y: y + 0.035, z, tx, tz, s: d });
   }
   scene.add(ribbon(fp, 6.5, tex, 9));
+  // Övergångar: vall → straffrunda, vall/straffrunda → banan, spåret → vallen
+  for (const k of ['toPenalty', 'rangeOut', 'penaltyOut', 'arrive']) {
+    const path = course.transits[k];
+    const tp = [];
+    for (let d = 0; d <= path.len; d += 1.5) {
+      const q = path.at(d);
+      tp.push({ x: q.x, y: q.y + 0.032 + (k === 'arrive' ? 0.002 : 0), z: q.z, tx: q.tx, tz: q.tz, s: d });
+    }
+    scene.add(ribbon(tp, 3.4, tex, 9));
+  }
 
   // Markeringspinnar längs spåret (röda till vänster, blå till höger) var 25:e meter
   const poleGeo = new THREE.CylinderGeometry(0.025, 0.03, 1.3, 5).translate(0, 0.65, 0);
@@ -98,8 +108,9 @@ export function buildTrack(scene, course) {
   for (let s = 0; s < course.n && i < 200; s += 25, i++) {
     const [x, y, z] = course.pointAt(s);
     const [tx, tz] = course.tangentAt(s);
-    m.makeTranslation(x - tz * 3.3, y, z + tx * 3.3); red.setMatrixAt(i, m);
-    m.makeTranslation(x + tz * 3.3, y, z - tx * 3.3); blue.setMatrixAt(i, m);
+    // ingen pinne mitt i en korsande övergång
+    m.makeTranslation(x - tz * 3.3, course.inLane(x - tz * 3.3, z + tx * 3.3, 2) ? -50 : y, z + tx * 3.3); red.setMatrixAt(i, m);
+    m.makeTranslation(x + tz * 3.3, course.inLane(x + tz * 3.3, z - tx * 3.3, 2) ? -50 : y, z - tx * 3.3); blue.setMatrixAt(i, m);
   }
   red.count = blue.count = i;
   for (const im of [red, blue]) { im.castShadow = true; scene.add(im); }
@@ -158,6 +169,7 @@ export function buildStadiumDetails(scene, course) {
       const kind = (Math.round(s / 5) + (side > 0 ? 1 : 0) + 30) % 3;
       if (counts[kind] >= 90) continue;
       const px = x - tz * off * side, pz = z + tx * off * side;
+      if (course.inLane(px, pz, 3.4)) continue; // öppning där övergången korsar
       pq.setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.atan2(x - px, z - pz)); // texten vänd mot spåret
       pv.set(px, y + 0.45, pz);
       pm.compose(pv, pq, one);
@@ -188,6 +200,7 @@ export function buildStadiumDetails(scene, course) {
   let k = 0;
   const place = (x, yy, z, facing) => {
     if (k >= MAX) return;
+    if (course.inLane(x, z, 2.6)) return; // öppning där övergången korsar
     q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), facing + (Math.random() - 0.5) * 0.6);
     const s = 0.9 + Math.random() * 0.2;
     sc.set(s, s, s);

@@ -1,3 +1,4 @@
+import { makeTransit } from './paths.js';
 // Bana: en sluten slinga på exakt LAP_LEN meter med höjdprofil.
 // Två källor:
 //  - inbakad bana (data/course.json från tools/build-course.mjs): riktigt spår + höjdkarta
@@ -7,6 +8,7 @@ export const LAP_LEN = 2000;      // damsprint/-stafettsträcka 6 km = 3 × 2 km
 export const LAPS = 3;
 export const PENALTY_LEN = 150;
 export const TIME_SCALE = 5;      // åkningen går 5× fortare än verklig fart (lopp ≈ 4–5 min)
+export const JOIN_S = 50; // var man kommer ut på banan igen efter vallen/straffrundan
 export const PENALTY_RADIUS = PENALTY_LEN / (2 * Math.PI);
 export const FINISH_LEN = 200;   // upploppsraka efter sista varvet
 
@@ -106,6 +108,7 @@ export class Course {
       this.stadium[0] - this.normal[0] * (PENALTY_RADIUS + 14) + tx * 30,
       this.stadium[1] - this.normal[1] * (PENALTY_RADIUS + 14) + tz * 30,
     ];
+    this.penaltyA0 = Math.atan2(this.normal[1], this.normal[0]);
 
     // Grova punkter för avståndsberäkning (terräng, träd)
     this.coarse = [];
@@ -120,6 +123,8 @@ export class Course {
       const p = this.finishPoint(d);
       this.coarse.push([p[0], p[2], e0]);
     }
+    this.buildTransits();
+    for (const k in this.transits) for (const [x, z] of this.transits[k].samples) this.coarse.push([x, z, e0]);
   }
 
   // Terränghöjd i spelkoordinater
@@ -169,8 +174,10 @@ export class Course {
     return Math.max(-0.22, Math.min(0.22, g));
   }
 
+  // Straffrundan börjar/slutar i punkten närmast banan och åks så att man
+  // startar i banans riktning.
   penaltyPoint(d) {
-    const a = (d / PENALTY_LEN) * Math.PI * 2;
+    const a = this.penaltyA0 - (d / PENALTY_LEN) * Math.PI * 2;
     const [cx, cz] = this.penaltyCenter;
     return [cx + Math.cos(a) * PENALTY_RADIUS, this.stadiumElev, cz + Math.sin(a) * PENALTY_RADIUS];
   }
@@ -182,8 +189,34 @@ export class Course {
   }
 
   penaltyTangent(d) {
-    const a = (d / PENALTY_LEN) * Math.PI * 2;
-    return [-Math.sin(a), Math.cos(a)];
+    const a = this.penaltyA0 - (d / PENALTY_LEN) * Math.PI * 2;
+    return [Math.sin(a), -Math.cos(a)];
+  }
+
+  // Övergångar på stadion: in till vallen, vall → straffrunda, vall/straffrunda → banan
+  buildTransits() {
+    const xz = (p) => [p[0], p[2]];
+    const t = this.tangentAt(0);
+    const sy = this.stadiumElev;
+    const pen0 = xz(this.penaltyPoint(0)), penT = this.penaltyTangent(0);
+    const join = xz(this.pointAt(JOIN_S)), joinT = this.tangentAt(JOIN_S), joinY = this.pointAt(JOIN_S)[1];
+    const end = this.pointAt(this.n - 0.01);
+    this.transits = {
+      arrive: makeTransit(xz(end), this.tangentAt(this.n - 0.01), this.rangePos, this.normal, end[1], sy),
+      toPenalty: makeTransit(this.rangePos, t, pen0, penT, sy),
+      rangeOut: makeTransit(this.rangePos, t, join, joinT, sy, joinY),
+      penaltyOut: makeTransit(pen0, penT, join, joinT, sy, joinY),
+    };
+  }
+
+  // Ligger (x, z) inom r meter från en övergång eller straffrundan? (öppningar i staketet)
+  inLane(x, z, r) {
+    const r2 = r * r;
+    for (const k in this.transits) {
+      if (k === 'arrive') continue;
+      for (const [px, pz] of this.transits[k].samples) if ((px - x) ** 2 + (pz - z) ** 2 < r2) return true;
+    }
+    return false;
   }
 
   // Närmaste spårpunkt (grov): [avstånd, höjd]
