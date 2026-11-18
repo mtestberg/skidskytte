@@ -22,6 +22,9 @@ export const FALL_TIME = 2.6; // sekunder
 
 export class Skiing {
   constructor() {
+    this.onBeat = null;    // callback() vid varje slag
+    this.onPush = null;    // callback(power) vid varje tag
+    this.onFall = null;    // callback() vid vurpa
     this.reset();
   }
 
@@ -44,14 +47,13 @@ export class Skiing {
     this.pushSide = 1;
     this.lastPower = 0;
     this.feedback = null;  // { text, kind, t }
-    this.onBeat = null;    // callback(power)
-    this.onPush = null;
     this.stats = { beats: 0, perfect: 0, pushes: 0, wild: 0 };
     this.assist = 3;       // de första tagen från stillastående har nästan hela pendeln som träffzon
     this.assistAllowed = true; // av under straffrundan
     this.wildStreak = 0;   // tryck utanför pendeln i rad
     this.fallen = 0;       // sekunder kvar av vurpan
-    this.onFall = null;
+    // OBS: onBeat/onPush/onFall sätts av main.js och får INTE nollställas här,
+    // annars tappas ljud och vurpa-meddelanden vid varje nytt lopp.
   }
 
   period(grade) {
