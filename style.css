@@ -157,3 +157,6 @@ button.link { background: none; border: 0; color: #9fd0ff; font-size: 15px; padd
 #ski-ui.sprint .bigbtn { border-color: #ffb347; animation: sprintPulse 0.45s ease-in-out infinite alternate; }
 #ski-ui.sprint .bigbtn.down { background: rgba(255, 170, 60, 0.55); border-color: #ffd27a; }
 @keyframes sprintPulse { from { box-shadow: 0 0 0 0 rgba(255, 160, 50, 0.0); } to { box-shadow: 0 0 22px 4px rgba(255, 160, 50, 0.55); } }
+/* Andan slut: mätaren blir röd och knappen grå tills man andats en stund */
+#s-breath.empty { background: #ff7b6b !important; }
+#btn-breath.blocked { opacity: 0.5; }

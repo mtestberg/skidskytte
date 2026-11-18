@@ -692,7 +692,12 @@ function updateHud() {
   $('h-energy').textContent = e + ' %';
   $('s-energy').textContent = e + ' %';
   $('h-energybar').style.width = e + '%';
-  if (shooting) $('s-breath').style.width = shooting.breath * 100 + '%';
+  if (shooting) {
+    $('s-breath').style.width = shooting.breath * 100 + '%';
+    $('s-breath').classList.toggle('empty', !shooting.holding && !shooting.canHold);
+    $('btn-breath').classList.toggle('blocked', !shooting.holding && !shooting.canHold);
+    $('btn-breath').textContent = shooting.holding ? 'Håller andan' : shooting.canHold ? 'Håll andan' : 'Andas…';
+  }
 }
 
 function renderShots() {

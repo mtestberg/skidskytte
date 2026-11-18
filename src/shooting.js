@@ -23,6 +23,7 @@ export class Shooting {
     this.shots = [];
     this.breath = 1;        // 0…1
     this.holding = false;
+    this.recovering = false; // efter att luften tagit slut: måste andas tills mätaren är halvfull
     this.holdTime = 0;
     this.debt = 0;          // andfåddhet efter att ha hållit andan
     this.t = Math.random() * 10;
@@ -69,8 +70,14 @@ export class Shooting {
     return { x: this.aim.x + s.x, y: this.aim.y + s.y };
   }
 
+  // Man kan hålla andan högst BREATH_MAX s. Därefter (eller efter att ha släppt nästan tomt)
+  // måste man andas en stund innan man kan hålla igen.
+  get canHold() {
+    return !this.recovering && this.breath >= 0.25;
+  }
+
   setHolding(on) {
-    if (on && !this.holding && this.breath > 0.1) {
+    if (on && !this.holding && this.canHold) {
       this.holding = true;
       this.holdTime = 0;
       this.events.push('inhale');
@@ -120,11 +127,13 @@ export class Shooting {
       if (this.breath <= 0) {
         this.breath = 0;
         this.holding = false;
+        this.recovering = true;
         this.debt += 2.2; // tvingad utandning – rejält andfådd
         this.events.push('gasp');
       }
     } else {
       this.breath = Math.min(1, this.breath + dt / BREATH_REFILL);
+      if (this.recovering && this.breath >= 0.5) this.recovering = false;
       this.debt = Math.max(0, this.debt - dt * 0.6);
     }
 
