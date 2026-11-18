@@ -123,6 +123,18 @@ for (let d = 0; d < len; d += STEP) {
   const e = dem ? dem(...toLatLon(x, z)) : a.ele + (b.ele - a.ele) * f;
   out.push([x, z, e]);
 }
+// Ytmodellen (Copernicus) innehåller hus och träd: jämna ut spårets höjd över ca ±30 m
+if (dem) {
+  for (let pass = 0; pass < 3; pass++) {
+    const e = out.map((p) => p[2]);
+    const w = 15, n = e.length;
+    for (let i = 0; i < n; i++) {
+      let sum = 0;
+      for (let d = -w; d <= w; d++) sum += e[(i + d + n) % n];
+      out[i][2] = sum / (2 * w + 1);
+    }
+  }
+}
 // Centrera slingan kring origo och gör höjden relativ startpunkten
 const cx = out.reduce((a, p) => a + p[0], 0) / out.length;
 const cz = out.reduce((a, p) => a + p[1], 0) / out.length;
@@ -142,7 +154,21 @@ if (dem) {
       h[gz * TERRAIN_N + gx] = Math.round((dem(...toLatLon(x, z)) - base) * 10); // decimeter
     }
   }
-  terrain = { size, n: TERRAIN_N, h };
+  // jämna ut hus och trädtoppar i terrängen också
+  let g = h.slice();
+  for (let pass = 0; pass < 2; pass++) {
+    const o = new Array(g.length);
+    for (let gz = 0; gz < TERRAIN_N; gz++) for (let gx = 0; gx < TERRAIN_N; gx++) {
+      let sum = 0, c = 0;
+      for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) {
+        const a = Math.min(TERRAIN_N - 1, Math.max(0, gx + dx)), b = Math.min(TERRAIN_N - 1, Math.max(0, gz + dz));
+        sum += g[b * TERRAIN_N + a]; c++;
+      }
+      o[gz * TERRAIN_N + gx] = Math.round(sum / c);
+    }
+    g = o;
+  }
+  terrain = { size, n: TERRAIN_N, h: g };
 }
 
 // Statistik

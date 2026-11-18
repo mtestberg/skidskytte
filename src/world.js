@@ -23,13 +23,15 @@ export function buildWorld(scene, course) {
   const sky = new THREE.Mesh(skyGeo, skyMat);
   scene.add(sky);
 
-  // Avlägsna berg (siluetter)
+  // Terräng (riktig höjdkarta täcker hm.size meter, annars procedurell)
+  const SIZE = course.hm ? Math.min(2400, course.hm.size * course.k) : SIZE_DEFAULT;
+  // Avlägsna berg (siluetter) utanför terrängen
   const mtnMat = new THREE.MeshLambertMaterial({ color: 0xb7c3d0, flatShading: true });
   const snowCap = new THREE.MeshLambertMaterial({ color: 0xf2f5f8, flatShading: true });
   for (let i = 0; i < 26; i++) {
     const a = (i / 26) * Math.PI * 2 + Math.random() * 0.1;
-    const r = 1250 + Math.random() * 200;
-    const h = 180 + Math.random() * 260;
+    const r = Math.max(1250, SIZE / 2 + 250) + Math.random() * 200;
+    const h = (course.hm ? 380 : 180) + Math.random() * 260;
     const w = 220 + Math.random() * 200;
     const m = new THREE.Mesh(new THREE.ConeGeometry(w, h, 6), mtnMat);
     m.position.set(Math.cos(a) * r, h / 2 - 30, Math.sin(a) * r);
@@ -41,8 +43,6 @@ export function buildWorld(scene, course) {
     scene.add(cap);
   }
 
-  // Terräng (riktig höjdkarta täcker hm.size meter, annars procedurell)
-  const SIZE = course.hm ? Math.min(2400, course.hm.size * course.k) : SIZE_DEFAULT;
   const geo = new THREE.PlaneGeometry(SIZE, SIZE, SEG, SEG);
   geo.rotateX(-Math.PI / 2);
   const pos = geo.attributes.position;

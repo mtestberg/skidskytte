@@ -156,7 +156,8 @@ Till steg 3 (multiplayer)
 ### Parkerade frågor till Maja
 1. Fungerar multiplayer över nätet på GitHub Pages (två telefoner i samma rum)? Firebase har inte kunnat testas härifrån.
 2. ~~Spåret~~ **Besvarat 2026-11-18:** Claude ritar en egen trovärdig 2 km-slinga runt stadion utifrån terrängen (`tools/draw-loop.mjs`, klart och testat med syntetisk höjdmodell).
-3. Höjdmodell: Maja laddar ner Copernicus GLO-30-rutan N45 E006 (fri, utan konto, länk i `data/README.md`) och bifogar den. Väntar på filen.
+3. ~~Höjdmodell~~ **Klart 2026-11-18:** Maja skickade Copernicus GLO-30-rutan N45 E006 (ligger i `raw/`, checkas inte in).
 
-- Nästa: svar på de parkerade frågorna → steg 2 (riktig bana) → steg 4 (finputs).
+- **Steg 2 klart 2026-11-18**: `data/course.json` = egen 2 km-slinga i dalen vid Le Grand-Bornand (förslag 5 av 5 från `draw-loop.mjs --seed 5`), riktig terräng 1,6 × 1,6 km från Copernicus (utjämnad mot hus/träd). Stadion på 920 m ö.h., stigning ca 63 m per varv, brantast ca +21 % / −18 %. Simulerat: perfekt ≈ 3:15, bra ≈ 3:35 (samma nivå som den procedurella banan). Andra förslag kan tas fram med andra `--seed`.
+- Nästa: Majas test av multiplayer och nya banan → steg 4 (finputs).
 - Testhake: `window.__game.step(dt)` kör spelet utan rendering (används för automatiska lopp i headless Chrome).
