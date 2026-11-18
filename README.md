@@ -18,7 +18,12 @@ Ett skidskyttespel för mobilens webbläsare (landskapsläge). Sprint (dambanan)
 | `src/world.js` | 3D: terräng, skog, stadion, åkaren |
 | `src/hud.js` | Pendel och minikarta |
 | `src/audio.js` | Syntetiserade ljud |
-| `src/main.js` | Spelloop, tillstånd, inmatning |
+| `src/wind.js` | Varierande sidvind |
+| `src/net.js` | Databaslager: Firebase eller lokalt läge (flikar på samma enhet) |
+| `src/mp.js` | Rum, placering, spöken |
+| `src/ceremony.js` | Prisutdelning på pallen |
+| `src/config.js` | Firebase-konfiguration |
+| `src/main.js` | Spelloop, tillstånd, inmatning, meny/lobby |
 
 Ingen byggkedja: rena ES-moduler, Three.js r170 i `vendor/`.
 
@@ -30,3 +35,8 @@ python3 -m http.server 8000
 
 ## Publicera på GitHub Pages
 Settings → Pages → Deploy from a branch → `main` / root.
+
+## Multiplayer (Firebase Realtime Database)
+- Konfigurationen ligger i `src/config.js` (inte hemlig). Säkerheten ligger i databasreglerna i `firebase-rules.json`, som klistras in under Realtime Database → Rules i Firebase-konsolen.
+- Utan Firebase (`FIREBASE_CONFIG = null`, eller om Firebase inte går att nå) körs ett lokalt läge där multiplayer fungerar mellan flikar på samma enhet.
+- Datamodell: se kommentaren överst i `src/mp.js`.

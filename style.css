@@ -87,11 +87,11 @@ html, body {
 #banner small { display: block; font-size: 15px; font-weight: 500; opacity: 0.85; margin-top: 4px; }
 
 .overlay {
-  position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+  position: fixed; inset: 0; display: flex;
   background: radial-gradient(ellipse at center, rgba(11,22,34,0.55), rgba(11,22,34,0.92));
   padding: 16px; overflow-y: auto; touch-action: pan-y;
 }
-.card { background: rgba(16, 32, 50, 0.92); border-radius: 18px; padding: 20px 26px; max-width: 520px; width: 100%; text-align: center; }
+.card { margin: auto; background: rgba(16, 32, 50, 0.92); border-radius: 18px; padding: 20px 26px; max-width: 520px; width: 100%; text-align: center; }
 .card h1 { margin: 0 0 4px; font-size: 32px; letter-spacing: 0.5px; }
 .sub { opacity: 0.75; margin: 4px 0 14px; }
 button.primary {
@@ -110,3 +110,44 @@ summary { cursor: pointer; text-align: center; opacity: 0.85; }
   #rotate { display: flex; }
 }
 #err { position: fixed; bottom: 0; left: 0; right: 0; background: #a22; padding: 8px; font-size: 12px; z-index: 99; }
+
+/* ---------- Meny, lobby, topplista, prisutdelning ---------- */
+.field {
+  width: 100%; max-width: 280px; padding: 11px 14px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.25);
+  background: rgba(255,255,255,0.08); color: #fff; font-size: 17px; text-align: center; margin: 4px auto 12px; display: block;
+  user-select: text; -webkit-user-select: text; touch-action: manipulation;
+}
+.field.code { max-width: 120px; text-transform: uppercase; letter-spacing: 4px; font-weight: 700; margin: 0; }
+.row { display: flex; gap: 10px; justify-content: center; align-items: center; flex-wrap: wrap; margin: 6px 0; }
+button.primary.alt { background: rgba(255,255,255,0.14); color: #fff; }
+button.primary:disabled { opacity: 0.5; }
+button.link { background: none; border: 0; color: #9fd0ff; font-size: 15px; padding: 8px; cursor: pointer; text-decoration: underline; }
+.msg { min-height: 1.2em; color: #ffd23f; font-size: 14px; margin: 6px 0; }
+.note { font-size: 12px; opacity: 0.6; margin: 6px 0; }
+.bigcode { font-size: 46px !important; letter-spacing: 8px; margin: 0 !important; }
+#l-players { list-style: none; padding: 0; margin: 8px auto; max-width: 340px; text-align: left; }
+#l-players li { display: flex; align-items: center; gap: 10px; padding: 7px 4px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+#l-players .dot, .res .dot { width: 14px; height: 14px; border-radius: 50%; flex: none; display: inline-block; }
+#l-players .st { margin-left: auto; font-size: 13px; opacity: 0.85; }
+#l-players .st.ok { color: #7CFC9A; opacity: 1; font-weight: 700; }
+.res { text-align: left; font-size: 14px; margin: 6px auto 12px; max-width: 340px; font-variant-numeric: tabular-nums; }
+.res div { display: flex; gap: 8px; align-items: center; padding: 4px 2px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+.res div.me { background: rgba(255, 210, 63, 0.15); }
+.res .n { width: 1.6em; opacity: 0.7; }
+.res .nm { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.res .tm { opacity: 0.9; }
+.res h3 { font-size: 13px; text-transform: uppercase; letter-spacing: 1px; opacity: 0.6; margin: 10px 0 4px; font-weight: 600; }
+.pill.place { background: rgba(255, 210, 63, 0.85); color: #0b1622; }
+
+#ceremony { position: fixed; inset: 0; pointer-events: none; }
+#c-labels div {
+  position: absolute; transform: translate(-50%, -100%); background: rgba(8,18,30,0.75); padding: 4px 10px; border-radius: 8px;
+  font-weight: 700; white-space: nowrap; font-size: 15px;
+}
+#c-labels div b { color: #ffd23f; margin-right: 6px; }
+#c-panel {
+  position: absolute; right: max(12px, env(safe-area-inset-right)); top: 12px; bottom: 12px; width: 240px;
+  background: rgba(16, 32, 50, 0.85); border-radius: 14px; padding: 10px 14px; overflow-y: auto; pointer-events: auto; text-align: center;
+}
+#c-panel h2 { margin: 4px 0; font-size: 18px; }
+#c-panel button { font-size: 15px; padding: 10px 16px; }

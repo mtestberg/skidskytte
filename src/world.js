@@ -333,6 +333,24 @@ export function buildSkier(bibColor = 0xffd23f, suitColor = 0x1d4f91) {
 export function animateSkier(sk, dt, push, side, v, grade, mode = 'ski') {
   sk.phase += dt * (1 + v * 0.3);
   const crouch = mode === 'prone' ? 0 : 1;
+  if (mode === 'cheer' || mode === 'standstill') {
+    const cheer = mode === 'cheer';
+    const t = sk.phase;
+    sk.body.rotation.x = 0;
+    sk.torso.rotation.set(0, 0, 0);
+    sk.body.position.y = cheer ? Math.max(0, Math.sin(t * 6)) * 0.25 : 0;
+    for (const a of sk.arms) {
+      a.sh.rotation.x = cheer ? -2.9 + Math.sin(t * 6 + a.side) * 0.25 : -0.2;
+      a.sh.rotation.z = a.side * (cheer ? -0.35 : 0.1);
+      a.el.rotation.x = cheer ? -0.2 : -0.3;
+    }
+    for (const l of sk.legs) {
+      l.hip.rotation.set(0, 0, l.side * 0.05);
+      l.knee.rotation.x = cheer ? Math.max(0, Math.sin(t * 6)) * 0.3 : 0;
+    }
+    levelSkis(sk);
+    return;
+  }
   if (mode === 'prone') {
     sk.body.rotation.x = Math.PI / 2 - 0.15;
     sk.body.position.y = 0.18;

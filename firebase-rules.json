@@ -1,0 +1,27 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "rooms": {
+      "$code": {
+        ".read": true,
+        ".write": "$code.matches(/^[A-Z]{4}$/)"
+      }
+    },
+    "leaderboard": {
+      ".read": true,
+      ".indexOn": ["time"],
+      "$id": {
+        ".write": "!data.exists()",
+        ".validate": "newData.hasChildren(['name', 'time', 'misses', 'ts']) && newData.child('name').isString() && newData.child('name').val().length <= 16 && newData.child('time').isNumber() && newData.child('time').val() > 60 && newData.child('misses').isNumber()"
+      }
+    },
+    "ghosts": {
+      ".read": true,
+      "$id": {
+        ".write": "!data.exists()",
+        ".validate": "newData.isString() && newData.val().length < 20000"
+      }
+    }
+  }
+}

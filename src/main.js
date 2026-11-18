@@ -5,6 +5,9 @@ import { Shooting } from './shooting.js';
 import { buildWorld, buildSkier, animateSkier, updateFlags } from './world.js';
 import { drawPendulum, Minimap, Profile, drawFlag, fmtTime } from './hud.js';
 import { Wind } from './wind.js';
+import { connect } from './net.js';
+import { Room, makeCode, makeId, standings, GhostRecorder, decodeGhost, ghostAt, COLOR_CSS } from './mp.js';
+import { Ceremony } from './ceremony.js';
 import * as sfx from './audio.js';
 
 const $ = (id) => document.getElementById(id);
@@ -51,6 +54,7 @@ skier.root.traverse((o) => { if (o.isMesh) o.castShadow = true; });
 scene.add(skier.root);
 
 const minimap = new Minimap($('minimap'), course);
+const ceremony = new Ceremony(scene, course);
 const profile = new Profile($('profile'), course);
 
 function resize() {
@@ -73,36 +77,68 @@ const ski = new Skiing();
 ski.onPush = (power) => { if (opts.sound) sfx.polePlant(power); };
 ski.onBeat = () => { if (opts.sound && state === 'ski') sfx.tick(); };
 
-let state = 'menu'; // menu | countdown | ski | arrive | range | penalty | done
+let state = 'menu'; // menu | lobby | countdown | ski | arrive | range | penalty | done | ceremony
 let countdown = 0;
+let mode = 'solo';       // 'solo' (träning mot spöken) | 'mp' (rum)
+let mpStartLocal = 0;    // performance.now() när loppet startar (mp)
+
+// ---------- Nätverk ----------
+let db = null;
+let room = null;
+let raceId = 0;
+let ceremonyShown = false;
+let recorder = null;
+let liveTimer = 0;
+let ghosts = [];          // [{ name, color, time, g }]
+// Nytt id per flik, så att flera flikar/enheter aldrig krockar
+const me = { id: makeId(), name: store.get('name', '') };
+$('in-name').value = me.name;
+connect().then((d) => {
+  db = d;
+  $('net-note').textContent = d.online
+    ? ''
+    : 'Lokalt läge: multiplayer fungerar bara mellan flikar på samma enhet tills Firebase är kopplat.';
+});
 let race, shooting = null, arriveTimer = 0, bannerTimer = 0;
 const camPos = new THREE.Vector3(), camLook = new THREE.Vector3();
 let camInit = false;
 
-function newRace() {
+// seed: gemensam vind för alla i samma rum
+function newRace(countSeconds = 3, seed = null) {
   ski.reset();
   ski.assistAllowed = true;
-  wind = new Wind();
+  wind = new Wind(seed == null ? Math.random : seeded(seed));
   race = { lap: 1, s: 0, time: 0, penaltyLeft: 0, penaltyDist: 0, misses: [], splits: [], shootTime: [], shootStart: 0 };
   state = 'countdown';
-  countdown = 3.999;
+  countdown = countSeconds - 0.001;
+  recorder = new GhostRecorder();
+  liveTimer = 0;
+  ceremonyShown = false;
   camInit = false;
   showUI();
-  countBanner(3);
+  countBanner(Math.ceil(countdown));
   if (opts.sound) sfx.beep(false);
+}
+
+function seeded(n) {
+  let x = n >>> 0 || 1;
+  return () => { x ^= x << 13; x ^= x >>> 17; x ^= x << 5; return ((x >>> 0) % 100000) / 100000; };
 }
 
 function countBanner(n) {
   const b = $('banner');
   b.classList.add('count');
-  b.innerHTML = `${n}<small>Tryck Stavtag + Skär samtidigt när pendeln är i den gröna zonen</small>`;
+  const hint = n > 3 ? 'Loppet startar snart' : 'Tryck Stavtag + Skär samtidigt när pendeln är i den gröna zonen';
+  b.innerHTML = `${n}<small>${hint}</small>`;
   b.classList.remove('hidden');
   bannerTimer = 0;
 }
 
 function tickCountdown(dt) {
   const before = Math.ceil(countdown - 0.999);
-  countdown -= dt;
+  // I rum följer nedräkningen den gemensamma starttiden
+  if (mode === 'mp' && mpStartLocal) countdown = (mpStartLocal - performance.now()) / 1000;
+  else countdown -= dt;
   const after = Math.ceil(countdown - 0.999);
   if (after !== before) {
     if (after > 0) {
@@ -125,6 +161,13 @@ function showUI() {
   $('shoot-ui').classList.toggle('hidden', state !== 'range');
   $('menu').classList.toggle('hidden', state !== 'menu');
   $('result').classList.toggle('hidden', state !== 'done');
+  $('lobby').classList.toggle('hidden', state !== 'lobby');
+  $('ceremony').classList.toggle('hidden', state !== 'ceremony');
+  $('h-place').classList.toggle('hidden', !(mode === 'mp' || ghosts.length));
+  $('btn-again').classList.toggle('hidden', mode === 'mp');
+  $('btn-r-lobby').classList.toggle('hidden', mode !== 'mp');
+  $('r-wait').classList.toggle('hidden', mode !== 'mp');
+  if (state !== 'ceremony') ceremony.stop();
   camInit = false;
   requestAnimationFrame(resize);
 }
@@ -201,6 +244,212 @@ function finish() {
     `<div><span>Energi kvar</span><span>${Math.round(ski.energy)} %</span></div>`;
   if (opts.sound) sfx.beep(true);
   showUI();
+  submitResult(total, misses, isBest);
+}
+
+// ---------- Resultat, topplista och spöken ----------
+async function submitResult(time, misses, isBest) {
+  const ghostStr = recorder ? recorder.encode() : '';
+  if (isBest && ghostStr) store.set('ghost', { time, g: ghostStr });
+  if (mode === 'mp' && room) {
+    room.sendResult({ time, misses, raceId, progress: LAPS * LAP_LEN });
+    renderWait();
+  }
+  if (!db) return;
+  const name = me.name || 'Anonym';
+  try {
+    let ghostId = null;
+    const top = await db.topBy('leaderboard', 'time', 1);
+    if (!top.length || time < top[0].time) ghostId = await db.push('ghosts', ghostStr);
+    await db.push('leaderboard', { name, time, misses, ts: db.now(), ...(ghostId ? { ghost: ghostId } : {}) });
+  } catch (e) { console.warn('Kunde inte spara resultatet', e); }
+  renderBoard($('r-board'), 10, time);
+}
+
+async function renderBoard(el, n, highlightTime = null) {
+  if (!db) { el.innerHTML = ''; return; }
+  el.innerHTML = '<div class="res"><h3>Topplista</h3>Laddar …</div>';
+  try {
+    const list = await db.topBy('leaderboard', 'time', n);
+    el.innerHTML = `<div class="res"><h3>Topplista${db.online ? '' : ' (lokal)'}</h3>` +
+      (list.length ? list.map((r, i) =>
+        `<div class="${highlightTime != null && Math.abs(r.time - highlightTime) < 0.001 ? 'me' : ''}"><span class="n">${i + 1}</span><span class="nm">${esc(r.name)}</span><span class="tm">${fmtTime(r.time)}</span><span class="tm">${r.misses} m</span></div>`
+      ).join('') : '<p class="note">Inga resultat än</p>') + '</div>';
+  } catch {
+    el.innerHTML = '<p class="note">Topplistan kunde inte laddas</p>';
+  }
+}
+
+const esc = (t) => String(t ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+
+// Spöken för träning: eget personbästa + världens snabbaste
+async function loadGhosts() {
+  ghosts = [];
+  const pb = store.get('ghost', null);
+  if (pb && pb.g) ghosts.push({ name: 'Ditt bästa', color: 0x9fd0ff, time: pb.time, g: decodeGhost(pb.g) });
+  if (!db) return;
+  try {
+    const top = await db.topBy('leaderboard', 'time', 1);
+    if (top.length && top[0].ghost && (!pb || Math.abs(top[0].time - pb.time) > 0.01)) {
+      const g = await db.get('ghosts/' + top[0].ghost);
+      if (g) ghosts.push({ name: top[0].name, color: 0xffd23f, time: top[0].time, g: decodeGhost(g) });
+    }
+  } catch { /* ignorera */ }
+}
+
+// Mitt framsteg i meter (för placering och spöken)
+function myProgress() {
+  if (!race) return 0;
+  if (state === 'arrive' || state === 'range' || state === 'penalty') return race.lap * LAP_LEN;
+  if (state === 'done' || state === 'ceremony') return LAPS * LAP_LEN;
+  return (race.lap - 1) * LAP_LEN + race.s;
+}
+function myStCode() {
+  return state === 'penalty' ? 'p' : state === 'arrive' || state === 'range' ? 'r' : state === 'done' ? 'f' : 's';
+}
+
+// Övriga deltagare: andra i rummet, eller spöken i träning
+function competitors() {
+  if (mode === 'mp' && room) {
+    return room.players()
+      .filter((p) => p.id !== me.id && (p.status === 'racing' || (p.status === 'done' && p.result?.raceId === raceId)))
+      .map((p) => ({
+        name: p.name, color: p.color,
+        done: p.status === 'done', time: p.result?.time ?? 0,
+        progress: p.live?.p ?? 0, st: p.live?.st ?? 's', pd: p.live?.pd ?? 0,
+      }));
+  }
+  if (!race) return [];
+  return ghosts.map((g) => {
+    const a = ghostAt(g.g, race.time);
+    return { name: g.name, color: g.color, done: a.done, time: g.time, progress: a.p, st: a.st, pd: a.pd };
+  });
+}
+
+function posOf(c) {
+  if (c.st === 'p') { const p = course.penaltyPoint(c.pd); return { x: p[0], z: p[2] }; }
+  if (c.st === 'r') return { x: course.rangePos[0], z: course.rangePos[1] };
+  if (c.st === 'f' || c.done) return { x: course.stadium[0], z: course.stadium[1] };
+  const p = course.pointAt(c.progress % LAP_LEN);
+  return { x: p[0], z: p[2] };
+}
+
+function updatePlace(others) {
+  if (!others.length) return;
+  const mine = { me: true, done: state === 'done', time: race.time, progress: myProgress() };
+  const order = standings([mine, ...others]);
+  $('h-place').textContent = `${order.indexOf(mine) + 1} / ${order.length}`;
+}
+
+// ---------- Rum ----------
+function playerName() {
+  me.name = $('in-name').value.trim().slice(0, 16);
+  store.set('name', me.name);
+  return me.name;
+}
+
+async function enterRoom(code, create) {
+  const msg = $('mp-msg');
+  if (!playerName()) { msg.textContent = 'Skriv ditt namn först'; $('in-name').focus(); return; }
+  if (!db) { msg.textContent = 'Ansluter … försök igen om en sekund'; return; }
+  code = code.toUpperCase();
+  if (!/^[A-Z]{4}$/.test(code)) { msg.textContent = 'Koden är fyra bokstäver'; return; }
+  const r = new Room(db, code, me);
+  if (create) await r.create();
+  else if (!(await r.exists())) { msg.textContent = `Hittar inget rum med koden ${code}`; return; }
+  await r.join();
+  room = r;
+  mode = 'mp';
+  msg.textContent = '';
+  $('l-code').textContent = code;
+  state = 'lobby';
+  showUI();
+  room.listen(onRoom);
+}
+
+function onRoom(d) {
+  if (!room) return;
+  if (!d) return;
+  room.maybeStart();
+  if (state === 'lobby') renderLobby();
+  // Synkad start: starttid satt och jag är redo i lobbyn
+  const my = room.mine();
+  if (state === 'lobby' && d.startAt && my && my.ready && my.status === 'lobby' && d.startAt > db.now() - 500) {
+    raceId = d.raceId;
+    mpStartLocal = performance.now() + (d.startAt - db.now());
+    room.startRacing();
+    newRace(Math.max(1, (d.startAt - db.now()) / 1000), d.startAt);
+  }
+  if (state === 'done') {
+    renderWait();
+    maybeCeremony();
+  }
+}
+
+function renderLobby() {
+  const ps = room.players();
+  const my = room.mine();
+  $('l-players').innerHTML = ps.map((p) => {
+    const st = p.status === 'racing' ? 'i loppet' : p.status === 'done' ? 'i mål' : p.ready ? 'Redo ✓' : 'väntar';
+    return `<li><span class="dot" style="background:${COLOR_CSS(p.color)}"></span><span>${esc(p.name)}${p.id === me.id ? ' (du)' : ''}</span><span class="st ${p.ready ? 'ok' : ''}">${st}</span></li>`;
+  }).join('');
+  const busy = ps.some((p) => p.status === 'racing');
+  const ready = !!my?.ready;
+  $('btn-ready').textContent = ready ? 'Inte redo' : 'Redo';
+  const startAt = room.data?.startAt;
+  const left = startAt ? Math.ceil((startAt - db.now()) / 1000) : 0;
+  $('l-msg').textContent = left > 0 && ready ? `Startar om ${left} s …`
+    : busy ? 'Ett lopp pågår – du kommer med i nästa.'
+    : ps.length < 2 ? 'Väntar på fler … (du kan också köra ensam)'
+    : ps.every((p) => p.ready) ? 'Alla redo!' : '';
+}
+
+function renderWait() {
+  if (mode !== 'mp' || !room) return;
+  const ps = room.players().filter((p) => p.status === 'racing' || (p.status === 'done' && p.result?.raceId === raceId));
+  const done = ps.filter((p) => p.status === 'done').sort((a, b) => a.result.time - b.result.time);
+  const racing = ps.filter((p) => p.status === 'racing').sort((a, b) => (b.live?.p ?? 0) - (a.live?.p ?? 0));
+  $('r-wait').innerHTML = `<div class="res"><h3>Rummet ${room.code}</h3>` +
+    done.map((p, i) => `<div class="${p.id === me.id ? 'me' : ''}"><span class="n">${i + 1}</span><span class="dot" style="background:${COLOR_CSS(p.color)}"></span><span class="nm">${esc(p.name)}</span><span class="tm">${fmtTime(p.result.time)}</span></div>`).join('') +
+    racing.map((p) => `<div><span class="n">–</span><span class="dot" style="background:${COLOR_CSS(p.color)}"></span><span class="nm">${esc(p.name)}</span><span class="tm">åker …</span></div>`).join('') +
+    (racing.length ? `<p class="note">Prisutdelningen börjar när alla är i mål</p>` : '') + '</div>';
+}
+
+function maybeCeremony() {
+  if (ceremonyShown || mode !== 'mp' || !room) return;
+  const ps = room.players().filter((p) => p.status === 'racing' || (p.status === 'done' && p.result?.raceId === raceId));
+  if (ps.some((p) => p.status === 'racing')) return;
+  const order = ps.filter((p) => p.status === 'done').sort((a, b) => a.result.time - b.result.time);
+  if (!order.length) return;
+  ceremonyShown = true;
+  setTimeout(() => startCeremony(order), 1500);
+}
+
+function startCeremony(order) {
+  if (state !== 'done') return;
+  state = 'ceremony';
+  ceremony.start(order.map((p) => ({ name: p.name, color: p.color })));
+  $('c-list').innerHTML = '<div class="res">' + order.map((p, i) =>
+    `<div class="${p.id === me.id ? 'me' : ''}"><span class="n">${i + 1}</span><span class="dot" style="background:${COLOR_CSS(p.color)}"></span><span class="nm">${esc(p.name)}</span><span class="tm">${fmtTime(p.result.time)}</span></div>`).join('') + '</div>';
+  showUI();
+  if (opts.sound) { sfx.beep(true); setTimeout(() => sfx.beep(true), 400); }
+}
+
+function backToLobby() {
+  if (!room) return toMenu();
+  room.setStatus('lobby');
+  state = 'lobby';
+  showUI();
+  renderLobby();
+}
+
+async function toMenu() {
+  if (room) { const r = room; room = null; await r.leave(); }
+  mode = 'solo';
+  state = 'menu';
+  ghosts = [];
+  showUI();
+  showBest();
 }
 
 // ---------- Uppdatering ----------
@@ -208,8 +457,18 @@ let heartPhase = 0;
 
 function update(dt) {
   if (state === 'menu' || state === 'done') return;
+  if (state === 'lobby') { if (room?.data) renderLobby(); return; }
   if (state === 'countdown') { tickCountdown(dt); return; }
+  if (state === 'ceremony') return;
   race.time += dt;
+  if (recorder) recorder.sample(race.time, myProgress(), myStCode(), race.penaltyDist);
+  if (mode === 'mp' && room) {
+    liveTimer += dt;
+    if (liveTimer > 0.25) {
+      liveTimer = 0;
+      room.sendLive({ p: Math.round(myProgress()), st: myStCode(), pd: Math.round(race.penaltyDist) });
+    }
+  }
 
   if (state === 'ski') {
     const grade = course.gradeAt(race.s);
@@ -278,21 +537,22 @@ function placeSkier(dt) {
       mode = shooting && shooting.kind === 'prone' ? 'prone' : 'stand';
     }
   } else {
-    const s = state === 'menu' ? 40 : race.s;
+    const idle = state === 'menu' || state === 'lobby' || !race;
+    const s = idle ? 40 : race.s;
     [x, y, z] = course.pointAt(s);
     [tx, tz] = course.tangentAt(s);
   }
   skier.root.position.set(x, y, z);
   skier.root.rotation.y = Math.atan2(tx, tz);
   const grade = state === 'ski' ? course.gradeAt(race.s) : 0;
-  animateSkier(skier, dt, ski.pushAnim, ski.pushSide, state === 'menu' ? 0 : ski.v, grade, mode);
+  animateSkier(skier, dt, ski.pushAnim, ski.pushSide, state === 'menu' || state === 'lobby' ? 0 : ski.v, grade, mode);
 
   // Kamera bakom och ovanför
   const back = mode === 'ski' ? 4.3 : 5;
   const up = mode === 'ski' ? 2.0 : 1.8;
   tmpV.set(x - tx * back, y + up, z - tz * back);
   const look = new THREE.Vector3(x + tx * 4, y + 1.2, z + tz * 4);
-  if (state === 'menu') {
+  if (state === 'menu' || state === 'lobby') {
     const a = performance.now() / 9000;
     tmpV.set(x + Math.cos(a) * 7, y + 2.2, z + Math.sin(a) * 7);
     look.set(x, y + 1, z);
@@ -310,7 +570,7 @@ function placeSkier(dt) {
 }
 
 function updateHud() {
-  if (state === 'menu' || state === 'done') return;
+  if (!race || state === 'menu' || state === 'done' || state === 'lobby' || state === 'ceremony') return;
   const t = fmtTime(race.time);
   $('h-time').textContent = t;
   $('s-time').textContent = t;
@@ -359,17 +619,32 @@ function frame(now) {
     drawFlag(f.getContext('2d'), f.width, f.height, shooting.wind, race.time);
     return; // 3D är dold under kikaren – spara batteri
   }
+  if (state === 'ceremony') {
+    ceremony.update(dt, camera);
+    const W = window.innerWidth, H = window.innerHeight;
+    $('c-labels').innerHTML = ceremony.labels(camera, W, H)
+      .filter((l) => l.show)
+      .map((l) => `<div style="left:${l.x}px;top:${l.y}px"><b>${l.place}</b>${esc(l.name)}</div>`).join('');
+    sun.position.copy(ceremony.origin).addScaledVector(SUN_DIR, 120);
+    sun.target.position.copy(ceremony.origin);
+    updateFlags(world.flags, wind.at(now / 1000), now / 1000);
+    renderer.render(scene, camera);
+    return;
+  }
   placeSkier(dt);
+  const others = (race && state !== 'menu' && state !== 'lobby') ? competitors() : [];
+  const dots = others.map((c) => ({ ...posOf(c), color: COLOR_CSS(c.color) }));
+  if (race && state !== 'menu') updatePlace(others);
   if (state === 'ski' || state === 'penalty' || state === 'countdown') {
     const c = $('pendulum');
     drawPendulum(c.getContext('2d'), c.width, c.height, ski);
     let mx, mz;
     if (state === 'penalty') { const p = course.penaltyPoint(race.penaltyDist); mx = p[0]; mz = p[2]; }
     else { const p = course.pointAt(race.s); mx = p[0]; mz = p[2]; }
-    minimap.draw({ x: mx, z: mz }, [], `Varv ${race.lap}/${LAPS}`);
+    minimap.draw({ x: mx, z: mz }, dots, `Varv ${race.lap}/${LAPS}`);
     profile.draw(state === 'penalty' ? course.n : race.s, race.lap < LAPS);
   } else if (state === 'arrive') {
-    minimap.draw({ x: course.rangePos[0], z: course.rangePos[1] }, [], `Varv ${race.lap}/${LAPS}`);
+    minimap.draw({ x: course.rangePos[0], z: course.rangePos[1] }, dots, `Varv ${race.lap}/${LAPS}`);
   }
   updateFlags(world.flags, race ? wind.at(race.time) : wind.at(now / 1000), now / 1000);
   renderer.render(scene, camera);
@@ -474,7 +749,7 @@ showBest();
 $('opt-sound').addEventListener('change', (e) => { opts.sound = e.target.checked; store.set('sound', opts.sound); sfx.setEnabled(opts.sound); });
 $('opt-gyro').addEventListener('change', (e) => { opts.gyro = e.target.checked; store.set('gyro', opts.gyro); });
 
-async function start() {
+async function prepare() {
   sfx.init();
   sfx.setEnabled(opts.sound);
   if (opts.gyro && typeof DeviceOrientationEvent !== 'undefined' && DeviceOrientationEvent.requestPermission) {
@@ -486,14 +761,49 @@ async function start() {
     }
     await screen.orientation?.lock?.('landscape');
   } catch { /* stöds inte överallt (t.ex. iPhone) */ }
+}
+
+async function start() {
+  playerName();
+  mode = 'solo';
+  await prepare();
+  await loadGhosts();
   newRace();
   resize();
 }
 $('btn-start').addEventListener('click', start);
 $('btn-again').addEventListener('click', () => { showBest(); start(); });
+$('btn-r-menu').addEventListener('click', toMenu);
+$('btn-r-lobby').addEventListener('click', backToLobby);
+$('btn-c-lobby').addEventListener('click', backToLobby);
+$('btn-mp').addEventListener('click', () => {
+  $('menu-main').classList.add('hidden');
+  $('mp-panel').classList.remove('hidden');
+});
+$('btn-mp-back').addEventListener('click', () => {
+  $('menu-main').classList.remove('hidden');
+  $('mp-panel').classList.add('hidden');
+});
+$('btn-create').addEventListener('click', async () => {
+  await prepare();
+  let code = makeCode();
+  if (db) for (let i = 0; i < 5 && (await new Room(db, code, me).exists()); i++) code = makeCode();
+  enterRoom(code, true);
+});
+$('btn-join').addEventListener('click', async () => { await prepare(); enterRoom($('in-code').value.trim(), false); });
+$('in-code').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('btn-join').click(); });
+$('btn-ready').addEventListener('click', () => { if (room) room.setReady(!room.mine()?.ready); });
+$('btn-leave').addEventListener('click', toMenu);
+$('btn-board').addEventListener('click', () => { $('board').classList.remove('hidden'); renderBoard($('b-list'), 20); });
+$('btn-board-close').addEventListener('click', () => $('board').classList.add('hidden'));
 
 resize();
 requestAnimationFrame(frame);
 
 // För automatiska tester
-window.__game = { get state() { return state; }, get race() { return race; }, ski, course, get shooting() { return shooting; }, step: (dt) => update(dt), start: newRace };
+window.__game = {
+  get state() { return state; }, get race() { return race; }, ski, course, get shooting() { return shooting; },
+  get room() { return room; }, get db() { return db; }, get ghosts() { return ghosts; }, me,
+  ceremony, camera, useLocalDb: async () => { const m = await import('./net.js'); db = await m.connectLocal(); },
+  step: (dt) => update(dt), start: newRace,
+};

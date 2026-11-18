@@ -142,5 +142,14 @@ Till steg 3 (multiplayer)
 - Repo: github.com/mtestberg/skidskytte (publikt). GitHub Pages: https://mtestberg.github.io/skidskytte/ (Maja slår på Pages själv i Settings → Pages; API:t är inte nåbart härifrån). Även en privat claude.ai-länk finns för test (gyro fungerar inte där).
 - 2026-11-18: feedback från första testet inbyggd: energi, högre puls, svårare liggande, vind + flaggor, höjdkurva, Sprint-namn. Efter energijusteringen (test 2): perfekt ≈ 4:00 med ~22 % kvar, bra ≈ 4:15 med ~16 %, glid i utför ~30 %, slarvig ≈ 5:20 med ~3 % (varv 3 ca 10 % långsammare, inte dubbelt så långsamt som innan). Nedräkning 3-2-1-KÖR vid start.
 - Efter test 3: dambana 3 × 2 km. Simulerat: perfekt ≈ 3:20 inkl. skytte med ~40 % energi kvar, bra ≈ 3:30 med ~35 %, slarvig ≈ 4:10 med ~20 %, glid i utför ~50 %.
-- Nästa: Majas test av energi/vind → steg 2 (riktig bana från Le Grand-Bornand) → steg 3 (multiplayer med placering, lobby-nedräkning, prisutdelning).
+- **Steg 3 (multiplayer) byggt 2026-11-18** (före steg 2 på Majas begäran):
+  - Meny: namn, Träna (ensam mot spöken), Multiplayer (skapa rum / gå med med 4-bokstavskod), Topplista.
+  - Lobby: spelarlista med färg och status, Redo/Inte redo. Värden (först inne i rummet) sätter `startAt` = servertid + 10 s när alla är redo; alla klienter räknar ned mot samma tid (Firebase `.info/serverTimeOffset`). Gemensam vind i rummet (seed = startAt).
+  - Under loppet: andra som prickar på minikartan, placering "X / N" i HUD:en (i mål sorteras på tid, övriga på framsteg). Live-position skickas 4 ggr/s.
+  - Efter målgång: väntelista för rummet, global topplista (topp 10), och när alla i rummet är i mål: animerad prisutdelning (pall, topp tre kliver upp och firar, konfetti, namnskyltar).
+  - Spöken: varje lopp spelas in (1 prov/s). I Träna åker man mot sitt eget personbästa (localStorage) och världsrekordets spöke (sparas i Firebase när någon slår rekordet).
+  - Firebase-projekt: `skidskytte-6c8e1`, databas i europe-west1. Regler i `firebase-rules.json` (Maja har klistrat in dem i konsolen).
+  - Firebase kan inte nås från Claudes arbetsyta (nätverket är spärrat), så multiplayer är testat med det lokala läget (två flikar via BroadcastChannel) i headless Chrome. Första riktiga testet över nätet görs av Maja på GitHub Pages.
+  - Den privata claude.ai-länken kan inte nå Firebase (CSP) och kör därför lokalt läge.
+- Nästa: Majas test av multiplayer över nätet → steg 2 (riktig bana från Le Grand-Bornand).
 - Testhake: `window.__game.step(dt)` kör spelet utan rendering (används för automatiska lopp i headless Chrome).

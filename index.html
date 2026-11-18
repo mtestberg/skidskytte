@@ -20,6 +20,7 @@
       <div class="pill" id="h-time">0:00.0</div>
       <div class="pill" id="h-speed">0 km/h</div>
       <div class="pill" id="h-dist">2000 m till vallen</div>
+      <div class="pill place hidden" id="h-place">1 / 1</div>
     </div>
     <div id="pulse">
       <div class="pulse-row"><span class="heart">♥</span><span id="h-bpm">70</span><small>bpm</small></div>
@@ -65,7 +66,24 @@
     <div class="card">
       <h1>Skidskytte</h1>
       <p class="sub">Sprint · Le Grand-Bornand · dam 3 × 2 km</p>
-      <button id="btn-start" class="primary">Starta loppet</button>
+      <input id="in-name" class="field" maxlength="16" placeholder="Ditt namn" autocomplete="nickname" />
+      <div id="menu-main">
+        <div class="row">
+          <button id="btn-start" class="primary">Träna</button>
+          <button id="btn-mp" class="primary alt">Multiplayer</button>
+        </div>
+        <button id="btn-board" class="link">Topplista</button>
+      </div>
+      <div id="mp-panel" class="hidden">
+        <button id="btn-create" class="primary">Skapa rum</button>
+        <div class="row join">
+          <input id="in-code" class="field code" maxlength="4" placeholder="KOD" autocomplete="off" autocapitalize="characters" />
+          <button id="btn-join" class="primary alt">Gå med</button>
+        </div>
+        <p id="mp-msg" class="msg"></p>
+        <button id="btn-mp-back" class="link">Tillbaka</button>
+      </div>
+      <p id="net-note" class="note"></p>
       <div class="settings">
         <label><input type="checkbox" id="opt-sound" checked /> Ljud</label>
         <label><input type="checkbox" id="opt-gyro" /> Sikta med gyro (experimentellt)</label>
@@ -86,7 +104,45 @@
       <h1 id="r-time">0:00.0</h1>
       <p id="r-detail" class="sub"></p>
       <div id="r-splits"></div>
-      <button id="btn-again" class="primary">Åk igen</button>
+      <div id="r-wait"></div>
+      <div id="r-board"></div>
+      <div class="row">
+        <button id="btn-again" class="primary">Åk igen</button>
+        <button id="btn-r-lobby" class="primary hidden">Tillbaka till lobbyn</button>
+        <button id="btn-r-menu" class="primary alt">Meny</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="lobby" class="overlay hidden">
+    <div class="card">
+      <p class="sub">Rum</p>
+      <h1 id="l-code" class="bigcode">ABCD</h1>
+      <p class="sub">Dela koden med de andra. Loppet startar 10 s efter att alla tryckt Redo.</p>
+      <ul id="l-players"></ul>
+      <p id="l-msg" class="msg"></p>
+      <div class="row">
+        <button id="btn-ready" class="primary">Redo</button>
+        <button id="btn-leave" class="primary alt">Lämna rummet</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="board" class="overlay hidden">
+    <div class="card">
+      <h1>Topplista</h1>
+      <p class="sub">Sprint · dam 3 × 2 km</p>
+      <div id="b-list">Laddar …</div>
+      <button id="btn-board-close" class="primary alt">Stäng</button>
+    </div>
+  </div>
+
+  <div id="ceremony" class="hidden">
+    <div id="c-labels"></div>
+    <div id="c-panel">
+      <h2>Resultat</h2>
+      <div id="c-list"></div>
+      <button id="btn-c-lobby" class="primary">Tillbaka till lobbyn</button>
     </div>
   </div>
 
