@@ -843,7 +843,7 @@ holdButton($('btn-edge'), () => skiing() && ski.press('edge'));
 holdButton($('btn-breath'), () => shooting && shooting.setHolding(true), () => shooting && shooting.setHolding(false));
 // Efter varje skott blir telefonens läge just då det nya neutralläget för gyrot
 // (man håller still när man skjuter), så att en ändrad hållning aldrig gör att siktet drar iväg.
-const gyroRecenter = () => { if (gyroCur) gyroRef = { ...gyroCur }; gyroVel.x = gyroVel.y = 0; };
+const gyroRecenter = () => {}; // gyrot är relativt (följer rörelsen), inget nolläge behövs
 holdButton($('btn-fire'), () => { if (shooting && state === 'range') { shooting.fire(); gyroRecenter(); } });
 
 // Sikta genom att dra på kikaren
@@ -864,54 +864,58 @@ scope.addEventListener('pointermove', (e) => {
 });
 const endDrag = (e) => { if (e.pointerId === dragId) dragId = null; };
 scope.addEventListener('pointerup', endDrag);
-scope.addEventListener('dblclick', () => { gyroRef = null; gyroVel.x = gyroVel.y = 0; });
 scope.addEventListener('pointercancel', endDrag);
 
-// Gyro (valbart): lutningen styr siktets FART (som en joystick).
-// Läget när skyttet börjar är neutralt. Luta åt vänster/höger (som en ratt) för att
-// flytta siktet i sidled. Höjdled som när man siktar med telefonen: överkanten mot
-// dig = siktet uppåt, överkanten bort från dig = nedåt. Rätar man upp
-// telefonen igen stannar siktet där det är. Lite lutning = långsamt och exakt,
-// mycket lutning = snabbt till nästa tavla.
-let gyroRef = null;               // neutralt läge { roll, pitch }
-const gyroVel = { x: 0, y: 0 };   // mm/s, utjämnat
-let gyroLast = 0;
-let gyroCur = null;               // senaste läget { roll, pitch }
-const GYRO_DEAD = 2.5;            // grader utan rörelse kring neutralläget
-const tiltSpeed = (deg, k, max, dead = GYRO_DEAD) => {
-  const a = Math.abs(deg) - dead;
-  if (a <= 0) return 0;
-  return Math.sign(deg) * Math.min(max, k * Math.pow(a, 1.45));
-};
+// Gyro (valbart): siktet följer telefonens rörelse, som när man pekar med en kamera.
+// Vrider/lutar man telefonen flyttas siktet lika mycket, och håller man telefonen
+// still ligger siktet still (inget neutralläge som siktet "faller tillbaka" mot).
+// - Sidled: vrid telefonen åt sidan (panorera) eller luta som en ratt.
+// - Höjdled: överkanten mot dig = siktet uppåt, bort från dig = nedåt.
+// Mycket långsamma rörelser (under ~1,5°/s) ignoreras, så man kan sakta "flytta tillbaka"
+// telefonen till en bekväm hållning utan att siktet följer med.
+// Rotationen räknas som en rotationsmatris av hela orienteringen, så hopp i
+// vinklarna (t.ex. när telefonen står på högkant i landskapsläge) spelar ingen roll.
+let gyroRef = null;               // föregående orientering (3×3-matris), null = börja om
+let gyroCur = null;
+let gyroT = 0;
+const GYRO_MM_PER_DEG_X = 42;     // sidled: ca 21° vridning över alla fem tavlor
+const GYRO_MM_PER_DEG_Y = 30;     // höjdled
+const GYRO_MIN_SPEED = 1.5;       // °/s – långsammare än så räknas som "flytta hållningen"
+const gyroVel = { x: 0, y: 0 };   // kvar för kompatibilitet (används inte längre)
+function eulerToMatrix(a, b, g) {
+  // W3C: R = Rz(alpha) · Rx(beta) · Ry(gamma), telefon → jord
+  const ca = Math.cos(a), sa = Math.sin(a), cb = Math.cos(b), sb = Math.sin(b), cg = Math.cos(g), sg = Math.sin(g);
+  return [
+    [ca * cg - sa * sb * sg, -cb * sa, ca * sg + cg * sa * sb],
+    [cg * sa + ca * sb * sg, ca * cb, sa * sg - ca * cg * sb],
+    [-cb * sg, sb, cb * cg],
+  ];
+}
 window.addEventListener('deviceorientation', (e) => {
   if (!opts.gyro || state !== 'range' || !shooting || e.beta == null || e.gamma == null) return;
-  // Världens "upp" i telefonens koordinater (oberoende av kompassriktning och skärmläge)
-  const b = e.beta * Math.PI / 180, g = e.gamma * Math.PI / 180;
-  const ux = -Math.cos(b) * Math.sin(g), uy = Math.sin(b), uz = Math.cos(b) * Math.cos(g);
-  if (Math.hypot(ux, uy) < 0.2) return; // telefonen ligger platt: ingen ratt-vinkel
-  const roll = Math.atan2(ux, uy) * 180 / Math.PI;   // vridning i skärmens plan (ratt)
-  const pitch = Math.asin(Math.max(-1, Math.min(1, uz))) * 180 / Math.PI; // hur mycket skärmen pekar uppåt
-  gyroCur = { roll, pitch };
-  if (!gyroRef) { gyroRef = { roll, pitch }; gyroVel.x = gyroVel.y = 0; return; }
-  let dr = roll - gyroRef.roll;
-  if (dr > 180) dr -= 360;
-  if (dr < -180) dr += 360;
-  const dp = pitch - gyroRef.pitch;
-  // vänster sida ner (moturs) → siktet åt vänster; överkanten mot dig (skärmen pekar nedåt) → siktet uppåt
-  const tx = -tiltSpeed(dr, 14, 520);
-  const ty = tiltSpeed(dp, 26, 450, 1.5); // höjdled: känsligare (det är svårare att fälla telefonen än att vrida den)
-  gyroVel.x += (tx - gyroVel.x) * 0.35;
-  gyroVel.y += (ty - gyroVel.y) * 0.35;
-  if (Math.abs(tx) < 1e-6) gyroVel.x *= 0.3; // rätar man upp stannar siktet direkt
-  if (Math.abs(ty) < 1e-6) gyroVel.y *= 0.3;
+  const d2r = Math.PI / 180;
+  const R = eulerToMatrix((e.alpha || 0) * d2r, e.beta * d2r, e.gamma * d2r);
+  const now = performance.now() / 1000;
+  gyroCur = R;
+  if (!gyroRef) { gyroRef = R; gyroT = now; return; }
+  const P = gyroRef, dt = Math.max(0.005, Math.min(0.2, now - gyroT));
+  gyroRef = R; gyroT = now;
+  // Rotation i telefonens egna koordinater: D = Pᵀ·R (små vinklar → axel·vinkel)
+  const D = (i, j) => P[0][i] * R[0][j] + P[1][i] * R[1][j] + P[2][i] * R[2][j];
+  const wx = (D(2, 1) - D(1, 2)) / 2, wy = (D(0, 2) - D(2, 0)) / 2, wz = (D(1, 0) - D(0, 1)) / 2;
+  // Skärmens axlar uttryckta i telefonens koordinater
+  const ang = (((screen.orientation && screen.orientation.angle) ?? window.orientation ?? 0) * d2r);
+  const upX = Math.sin(ang), upY = Math.cos(ang);       // skärmens "upp"
+  const rtX = Math.cos(ang), rtY = -Math.sin(ang);      // skärmens "höger"
+  const rUp = (wx * upX + wy * upY) / d2r;              // panorering (grader)
+  const rRight = (wx * rtX + wy * rtY) / d2r;           // fällning
+  const rRoll = wz / d2r;                               // ratt
+  if (Math.abs(rUp) + Math.abs(rRight) + Math.abs(rRoll) > 30) return; // orimligt hopp: hoppa över
+  let h = rUp + rRoll;     // vrid vänster eller luta vänster sida ner → siktet åt vänster
+  let v = rRight;          // överkanten mot dig → siktet uppåt
+  if (Math.hypot(h, v) / dt < GYRO_MIN_SPEED) return;    // för långsamt: bara omställning av hållningen
+  shooting.moveAim(-h * GYRO_MM_PER_DEG_X, -v * GYRO_MM_PER_DEG_Y);
 });
-setInterval(() => {
-  const now = performance.now();
-  const dt = Math.min(0.05, (now - gyroLast) / 1000);
-  gyroLast = now;
-  if (!opts.gyro || state !== 'range' || !shooting || !gyroRef) return;
-  if (gyroVel.x || gyroVel.y) shooting.moveAim(gyroVel.x * dt, gyroVel.y * dt);
-}, 16);
 
 // Tangentbord (dator)
 const keys = new Set();
