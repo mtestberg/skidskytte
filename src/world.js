@@ -405,6 +405,7 @@ export function animateSkier(sk, dt, push, side, v, grade, mode = 'ski') {
   sk.phase += dt * (1 + v * 0.3);
   sk.body.position.x = 0;
   sk.body.rotation.z = 0;
+  for (const l of sk.legs) l.ski.rotation.y = 0;
   const crouch = mode === 'prone' ? 0 : 1;
   if (mode === 'fall') {
     // t: 0 → FALL_TIME. Snubblar åt sidan (0–0,35 s), ligger, reser sig (sista 0,6 s)
@@ -470,13 +471,16 @@ export function animateSkier(sk, dt, push, side, v, grade, mode = 'ski') {
     a.sh.rotation.z = a.side * 0.12;
     a.el.rotation.x = -0.35 + p * 0.25;
   }
-  // Skär: V-ställning, viktöverföring åt pushSide
+  // Skär: skidorna parallella, det skärande benet vinklas utåt under skjutet
+  // och foten förs ut åt sidan, så att skidorna aldrig korsas.
   const skate = grade > -0.03 && v > 0.5;
-  const vAngle = skate ? 0.28 + Math.max(0, grade) * 1.2 : 0.02;
+  const vMax = 0.22 + Math.max(0, grade) * 0.9;
   for (const l of sk.legs) {
     const active = l.side === side;
-    l.hip.rotation.y = l.side * vAngle; // skärsteg: spetsarna utåt (V)
-    l.hip.rotation.z = l.side * (active ? 0.18 * p : 0.04);
+    const a = skate && active ? vMax * p : 0;
+    l.hip.rotation.y = 0;
+    l.ski.rotation.y = l.side * a;
+    l.hip.rotation.z = l.side * (active ? 0.24 * p : 0.035);
     l.hip.rotation.x = -0.25 - (active ? 0 : p * 0.2);
     l.knee.rotation.x = 0.45 + (active ? p * 0.25 : 0);
     l.ski.position.y = -0.515 + (active ? 0 : p * 0.12);

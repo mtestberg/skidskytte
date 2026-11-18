@@ -172,5 +172,6 @@ Till steg 3 (multiplayer)
   4. Ljud: tydligare stavisättning varje tag, glidljud efter fart, publikens sorl efter avstånd till stadion, jubel vid träff (stort vid fullt), "ååh" vid miss, varvklocka inför sista varvet, jubel vid start, upplopp och målgång.
   5. Grafik: läktare med 7 trappsteg, säten och tak längs upploppet med publik; publik med flaggor (SE, FR, NO, DE, IT) som viftar; START- och MÅL-portal (målportalen har klocka); lätt snöfall; skogen uppdelad i rutor för bättre prestanda.
   6. **Upploppsraka**: efter sista varvet fortsätter man 200 m rakt fram från stadion till målportalen (`FINISH_LEN`, läge 'm' i live/spöken).
+- **Rättningar efter test (2026-11-18):** skidorna är parallella och bara det skärande benet vinklas utåt (foten förs ut, så de aldrig korsas). Ljudbugg: publikljudets variation (LFO) var kopplad direkt på nivån och kunde aldrig bli tyst → konstant "swish swish"; nu ligger variationen på en separat nod. Glidljud bara vid åkning över ca 1,5 km/h, aldrig på vallen. Publiken hörs på vallen och är starkare överlag; jubel och "ååh" dubbelt så starka; på upploppet fullt publikljud och återkommande jubelvågor.
 - Nästa: Majas test → fler finputs.
 - Testhake: `window.__game.step(dt)` kör spelet utan rendering (används för automatiska lopp i headless Chrome).

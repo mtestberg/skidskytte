@@ -665,18 +665,25 @@ function renderShots() {
 
 let last = performance.now();
 // Glidljud efter fart, publikens sorl efter avstånd till stadion
+let straightCheer = 0;
 function updateAmbience() {
   if (!opts.sound) return;
   const skiing = race && (state === 'ski' || state === 'penalty') && ski.fallen <= 0;
   sfx.setGlide(ski.v, !!skiing);
   let crowd = 0;
-  if (state === 'arrive' || state === 'range') crowd = 0.8;
+  if (state === 'arrive' || state === 'range') crowd = 0.75;
   else if (state === 'done' || state === 'ceremony') crowd = 0.9;
-  else if (race && (skiing || state === 'countdown')) {
+  else if (race?.onStraight) crowd = 1.15;          // läktaren längs upploppet
+  else if (race && (skiing || state === 'countdown' || state === 'penalty')) {
     const p = skier.root.position;
     const d = Math.hypot(p.x - course.stadium[0], p.z - course.stadium[1]);
     crowd = Math.max(0, Math.min(1, (260 - d) / 220));
   }
+  // Upploppet: återkommande jubelvågor medan man spurtar
+  if (race?.onStraight && state === 'ski') {
+    straightCheer -= 1 / 60;
+    if (straightCheer <= 0) { sfx.cheer(1.1, 2.4); straightCheer = 1.6 + Math.random() * 0.8; }
+  } else straightCheer = 0;
   sfx.setCrowd(crowd);
 }
 

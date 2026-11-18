@@ -112,17 +112,21 @@ export function beep(high = false) {
 // ---------- Banans ljudbild (startas vid första ljudet) ----------
 let loops = null;
 
+// Brus i loop: källa → filter → mod (variation) → g (nivå, 0 = tyst) → master
 function loopNoise(type, freq, q) {
   const src = ac.createBufferSource();
   src.buffer = noiseBuf;
   src.loop = true;
+  // olika startpunkt i bruset så att looparna inte låter likadant
   const f = ac.createBiquadFilter();
   f.type = type; f.frequency.value = freq; f.Q.value = q;
+  const mod = ac.createGain();
+  mod.gain.value = 1;
   const g = ac.createGain();
   g.gain.value = 0;
-  src.connect(f).connect(g).connect(master);
-  src.start();
-  return { src, f, g };
+  src.connect(f).connect(mod).connect(g).connect(master);
+  src.start(0, Math.random() * 1.2);
+  return { src, f, mod, g };
 }
 
 function ensureLoops() {
@@ -130,13 +134,17 @@ function ensureLoops() {
   // Glid: skidorna mot snön
   const glide = loopNoise('bandpass', 1100, 0.6);
   // Publik: brus genom två "röst"-filter med långsam variation
-  const crowdA = loopNoise('bandpass', 520, 1.2);
-  const crowdB = loopNoise('bandpass', 1350, 1.5);
-  const lfo = ac.createOscillator();
-  const lfoGain = ac.createGain();
-  lfo.frequency.value = 0.35; lfoGain.gain.value = 0.25;
-  lfo.connect(lfoGain).connect(crowdB.g.gain);
-  lfo.start();
+  const crowdA = loopNoise('bandpass', 480, 0.9);
+  const crowdB = loopNoise('bandpass', 1200, 1.3);
+  // långsam variation i publikens sorl – på mod-noden, så att nivå 0 verkligen är tyst
+  for (const [node, fq, depth] of [[crowdA, 0.17, 0.25], [crowdB, 0.31, 0.35]]) {
+    node.mod.gain.value = 1 - depth;
+    const lfo = ac.createOscillator();
+    const lg = ac.createGain();
+    lfo.frequency.value = fq; lg.gain.value = depth;
+    lfo.connect(lg).connect(node.mod.gain);
+    lfo.start();
+  }
   loops = { glide, crowdA, crowdB };
   return loops;
 }
@@ -146,22 +154,23 @@ const ramp = (param, v, t = 0.15) => param.setTargetAtTime(v, ac.currentTime, t)
 // v i m/s
 export function setGlide(v, on = true) {
   if (!ensureLoops()) return;
-  ramp(loops.glide.g.gain, on ? Math.min(0.11, v * 0.011) : 0);
-  ramp(loops.glide.f.frequency, 800 + v * 70);
+  const level = on && v > 0.4 ? Math.min(0.07, (v - 0.4) * 0.008) : 0;
+  ramp(loops.glide.g.gain, level, 0.08);
+  ramp(loops.glide.f.frequency, 700 + v * 60);
 }
 
 // level 0…1 (närhet till stadion, eller fullt vid skjutvallen)
 export function setCrowd(level) {
   if (!ensureLoops()) return;
-  ramp(loops.crowdA.g.gain, level * 0.09, 0.4);
-  ramp(loops.crowdB.g.gain, level * 0.05, 0.4);
+  ramp(loops.crowdA.g.gain, level * 0.26, 0.5);
+  ramp(loops.crowdB.g.gain, level * 0.14, 0.5);
 }
 
 // Jubel: publikbrus som sväller och klingar av
 export function cheer(strength = 1, dur = 2.2) {
   if (!ac) return;
   const t = ac.currentTime;
-  for (const [f, q, gmax] of [[600, 1, 0.22], [1500, 1.4, 0.14], [3000, 2, 0.06]]) {
+  for (const [f, q, gmax] of [[550, 0.9, 0.5], [1400, 1.2, 0.32], [2800, 1.8, 0.14]]) {
     const src = ac.createBufferSource(); src.buffer = noiseBuf; src.loop = true;
     const bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = f; bp.Q.value = q;
     const g = ac.createGain();
@@ -183,7 +192,7 @@ export function ooh() {
   bp.frequency.exponentialRampToValueAtTime(380, t + 1.1);
   const g = ac.createGain();
   g.gain.setValueAtTime(0, t);
-  g.gain.linearRampToValueAtTime(0.18, t + 0.25);
+  g.gain.linearRampToValueAtTime(0.4, t + 0.25);
   g.gain.exponentialRampToValueAtTime(0.0005, t + 1.3);
   src.connect(bp).connect(g).connect(master);
   src.start(t); src.stop(t + 1.4);
