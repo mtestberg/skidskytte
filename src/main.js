@@ -871,8 +871,8 @@ const gyroVel = { x: 0, y: 0 };   // mm/s, utjämnat
 let gyroLast = 0;
 let gyroCur = null;               // senaste läget { roll, pitch }
 const GYRO_DEAD = 2.5;            // grader utan rörelse kring neutralläget
-const tiltSpeed = (deg, k, max) => {
-  const a = Math.abs(deg) - GYRO_DEAD;
+const tiltSpeed = (deg, k, max, dead = GYRO_DEAD) => {
+  const a = Math.abs(deg) - dead;
   if (a <= 0) return 0;
   return Math.sign(deg) * Math.min(max, k * Math.pow(a, 1.45));
 };
@@ -892,7 +892,7 @@ window.addEventListener('deviceorientation', (e) => {
   const dp = pitch - gyroRef.pitch;
   // vänster sida ner (moturs) → siktet åt vänster; överkanten mot dig (skärmen pekar nedåt) → siktet uppåt
   const tx = -tiltSpeed(dr, 14, 520);
-  const ty = tiltSpeed(dp, 9, 300);
+  const ty = tiltSpeed(dp, 26, 450, 1.5); // höjdled: känsligare (det är svårare att fälla telefonen än att vrida den)
   gyroVel.x += (tx - gyroVel.x) * 0.35;
   gyroVel.y += (ty - gyroVel.y) * 0.35;
   if (Math.abs(tx) < 1e-6) gyroVel.x *= 0.3; // rätar man upp stannar siktet direkt
