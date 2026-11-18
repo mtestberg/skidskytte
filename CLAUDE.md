@@ -181,5 +181,6 @@ Till steg 3 (multiplayer)
 - **Träffjubel (2026-11-18):** `hit.mp3` (Freesound #221568, alaskarobotics, från 1 s i originalet, 6 s med uttoning) spelas vid varje träff (`hitCheer()`, ca 3 s). Vid fullt spelas dessutom det stora jublet (`cheer.mp3`), som används för alla andra jubel (start, sista varvet, arena, upplopp, mål). hit.mp3 är CC0 1.0 (bekräftat av Maja). Alla ljudfiler får användas fritt utan attribution.
 - **Musik på prisutdelningen (2026-11-18):** `anthem.mp3` (Pixabay, leo_music_production, 22 s) spelas en gång när prisutdelningen börjar, med jubel ovanpå; publikljudet sänks medan musiken spelar och musiken tonas ut när man lämnar prisutdelningen.
 - **Bugg rättad (2026-11-18):** `Skiing.reset()` nollställde `onBeat`/`onPush`/`onFall` vid varje nytt lopp, så vurpa-ljud ("ååh"), vurpa-rutan, stavtagsljud och taktslag försvann efter starten. Callbackarna sätts nu i konstruktorn och rörs inte av `reset()`.
+- **Sorlet sänkt (2026-11-18):** bakgrundssorlet (`crowd.mp3`) sänkt till ca 40 % av tidigare nivå (`level * 0.17`).
 - Nästa: Majas test → fler finputs.
 - Testhake: `window.__game.step(dt)` kör spelet utan rendering (används för automatiska lopp i headless Chrome).

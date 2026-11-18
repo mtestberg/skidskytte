@@ -269,7 +269,7 @@ function setMurmur(level) {
     mk(b.duration / 2, 0.45);
     murmur = { g };
   }
-  murmur.g.gain.setTargetAtTime(level * 0.4, ac.currentTime, 0.6);
+  murmur.g.gain.setTargetAtTime(level * 0.17, ac.currentTime, 0.6);
   return true;
 }
 
