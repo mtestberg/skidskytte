@@ -13,7 +13,7 @@
   <link rel="icon" type="image/svg+xml" href="assets/icons/icon.svg" />
   <link rel="icon" type="image/png" sizes="64x64" href="assets/icons/icon-64.png" />
   <link rel="apple-touch-icon" href="assets/icons/icon-180.png" />
-  <link rel="stylesheet" href="style.css?v=202611182050" />
+  <link rel="stylesheet" href="style.css?v=202611182109" />
   <script type="importmap">{ "imports": { "three": "./vendor/three.module.min.js?v=r170" } }</script>
 </head>
 <body>
@@ -71,6 +71,16 @@
     </div>
   </div>
 
+  <!-- Tittarläge: som en tv-sändning -->
+  <div id="watch-ui" class="hidden">
+    <div id="w-top"><span class="live">LIVE</span><span id="w-clock">0:00</span><span id="w-title"></span></div>
+    <canvas id="w-map" width="200" height="140"></canvas>
+    <div id="w-board"></div>
+    <div id="w-range"></div>
+    <div id="w-focus"></div>
+    <button id="w-leave" class="chip">Lämna</button>
+    <div id="w-wait" class="hidden"></div>
+  </div>
   <div id="banner" class="hidden"></div>
   <div id="loading" class="hidden">Bygger banan …</div>
 
@@ -98,6 +108,7 @@
         <div class="row join">
           <input id="in-code" class="field code" maxlength="4" placeholder="KOD" autocomplete="off" autocapitalize="characters" />
           <button id="btn-join" class="primary alt">Gå med</button>
+          <button id="btn-watch" class="primary alt" title="Titta på loppet utan att åka">Bara titta</button>
         </div>
         <p id="mp-msg" class="msg"></p>
         <button id="btn-mp-back" class="link">Tillbaka</button>
@@ -195,6 +206,6 @@
   </div>
 
   <div id="err" class="hidden"></div>
-  <script type="module" src="src/main.js?v=202611182050"></script>
+  <script type="module" src="src/main.js?v=202611182109"></script>
 </body>
 </html>

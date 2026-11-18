@@ -1,6 +1,6 @@
 // Animerad prisutdelning: pall vid stadion, topp tre kliver upp och firar, konfetti.
 import * as THREE from 'three';
-import { buildSkier, animateSkier } from './world.js?v=202611182050';
+import { buildSkier, animateSkier } from './world.js?v=202611182109';
 
 const HEIGHTS = [1.1, 0.75, 0.5];   // 1:a, 2:a, 3:e
 const X = [0, -1.95, 1.95];          // 1:an i mitten

@@ -1,19 +1,19 @@
 import * as THREE from 'three';
-import { Course, loadCourseData, LAP_LEN, LAPS, PENALTY_LEN, TIME_SCALE, FINISH_LEN, JOIN_S } from './course.js?v=202611182050';
-import { Skiing } from './skiing.js?v=202611182050';
-import { Shooting, AIM_LIMIT } from './shooting.js?v=202611182050';
-import { buildWorld, buildSkier, animateSkier, updateFlags, SUN_DIR } from './world.js?v=202611182050';
-import { createSnow } from './scenery.js?v=202611182050';
-import { drawPendulum, Minimap, Profile, drawFlag, fmtTime } from './hud.js?v=202611182050';
-import { Wind } from './wind.js?v=202611182050';
-import { connect } from './net.js?v=202611182050';
-import { Room, makeCode, makeId, standings, GhostRecorder, decodeGhost, ghostAt, COLOR_CSS } from './mp.js?v=202611182050';
-import { Ceremony } from './ceremony.js?v=202611182050';
-import { FORMATS, FORMAT_IDS, getFormat, boardPath, storeKey, kmText } from './formats.js?v=202611182050';
-import { COURSES, COURSE_IDS, getCourse } from './courses.js?v=202611182050';
-import { Rivals } from './rivals.js?v=202611182050';
+import { Course, loadCourseData, LAP_LEN, LAPS, PENALTY_LEN, TIME_SCALE, FINISH_LEN, JOIN_S } from './course.js?v=202611182109';
+import { Skiing } from './skiing.js?v=202611182109';
+import { Shooting, AIM_LIMIT } from './shooting.js?v=202611182109';
+import { buildWorld, buildSkier, animateSkier, updateFlags, SUN_DIR } from './world.js?v=202611182109';
+import { createSnow } from './scenery.js?v=202611182109';
+import { drawPendulum, Minimap, Profile, drawFlag, fmtTime } from './hud.js?v=202611182109';
+import { Wind } from './wind.js?v=202611182109';
+import { connect } from './net.js?v=202611182109';
+import { Room, makeCode, makeId, standings, GhostRecorder, decodeGhost, ghostAt, COLOR_CSS } from './mp.js?v=202611182109';
+import { Ceremony } from './ceremony.js?v=202611182109';
+import { FORMATS, FORMAT_IDS, getFormat, boardPath, storeKey, kmText } from './formats.js?v=202611182109';
+import { COURSES, COURSE_IDS, getCourse } from './courses.js?v=202611182109';
+import { Rivals } from './rivals.js?v=202611182109';
 import qrcode from '../vendor/qrcode.js';
-import * as sfx from './audio.js?v=202611182050';
+import * as sfx from './audio.js?v=202611182109';
 
 const $ = (id) => document.getElementById(id);
 window.addEventListener('error', (e) => { const el = $('err'); el.textContent = 'Fel: ' + e.message; el.classList.remove('hidden'); });
@@ -207,6 +207,9 @@ function showUI() {
   $('result').classList.toggle('hidden', state !== 'done');
   $('lobby').classList.toggle('hidden', state !== 'lobby');
   $('ceremony').classList.toggle('hidden', state !== 'ceremony');
+  $('watch-ui').classList.toggle('hidden', state !== 'watch' && state !== 'watchwait');
+  $('w-wait').classList.toggle('hidden', state !== 'watchwait');
+  skier.root.visible = mode !== 'watch';
   $('h-place').classList.toggle('hidden', !(mode === 'mp' || ghosts.length));
   $('btn-again').classList.toggle('hidden', mode === 'mp');
   $('btn-r-lobby').classList.toggle('hidden', mode !== 'mp');
@@ -248,6 +251,9 @@ function startShooting() {
 
 function leaveRange() {
   const misses = shooting.misses;
+  race.lastSeries = shooting.shots.map((x) => (x.hit ? 1 : 0)).join('');
+  race.lastKind = shooting.kind;
+  (race.seriesDone = race.seriesDone || []).push(race.lastSeries);
   race.misses.push(misses);
   race.shootTime.push(race.time - race.shootStart);
   race.splits.push({ label: `${shooting.kind === 'prone' ? 'Liggande' : 'Stående'}: ${5 - misses}/5`, t: race.time });
@@ -363,6 +369,13 @@ async function loadGhosts() {
   } catch { /* ignorera */ }
 }
 
+// Skyttet i live-datan (för tittarläget): pågående serie, ställning och tidigare serier
+function shootLive() {
+  const cur = shooting ? shooting.shots.map((x) => (x.hit ? 1 : 0)).join('') : state === 'transit' ? race.lastSeries || '' : '';
+  const kindCode = (shooting?.kind || race.lastKind) === 'prone' ? 'L' : 'S';
+  return { sh: cur, k: kindCode, sr: (race.seriesDone || []).join(' ') };
+}
+
 // Mitt framsteg i meter (för placering och spöken)
 function myProgress() {
   if (!race) return 0;
@@ -381,13 +394,15 @@ function myStCode() {
 
 // Övriga deltagare: andra i rummet, eller spöken i träning
 function competitors() {
-  if (mode === 'mp' && room) {
+  if ((mode === 'mp' || mode === 'watch') && room) {
     return room.players()
-      .filter((p) => p.id !== me.id && (p.status === 'racing' || (p.status === 'done' && p.result?.raceId === raceId)))
+      .filter((p) => p.id !== me.id && (p.status === 'racing' || (p.status === 'done' && p.result?.raceId === raceId)
+        || (p.status !== 'done' && p.live?.rid === raceId && raceId)))
       .map((p) => ({
         id: p.id, name: p.name, color: p.color,
         done: p.status === 'done', time: p.result?.time ?? 0,
         progress: p.live?.p ?? 0, st: p.live?.st ?? 's', pd: p.live?.pd ?? 0,
+        sh: p.live?.sh ?? '', k: p.live?.k ?? 'L', sr: p.live?.sr ?? '', misses: p.result?.misses,
       }));
   }
   if (!race) return [];
@@ -582,7 +597,7 @@ function maybeCeremony() {
 }
 
 function startCeremony(order) {
-  if (state !== 'done') return;
+  if (state !== 'done' && state !== 'watch') return;
   state = 'ceremony';
   ceremony.start(order.map((p) => ({ name: p.name, color: p.color })));
   $('c-list').innerHTML = '<div class="res">' + order.map((p, i) =>
@@ -593,6 +608,7 @@ function startCeremony(order) {
 
 function backToLobby() {
   if (!room) return toMenu();
+  if (mode === 'watch') { state = 'watchwait'; showUI(); renderWatchWait(); return; }
   room.setStatus('lobby');
   state = 'lobby';
   showUI();
@@ -612,7 +628,7 @@ async function toMenu() {
 let heartPhase = 0;
 
 function update(dt) {
-  if (state === 'menu' || state === 'done') return;
+  if (state === 'menu' || state === 'done' || state === 'watch' || state === 'watchwait') return;
   if (state === 'lobby') { if (room?.data) renderLobby(); return; }
   if (state === 'countdown') { tickCountdown(dt); return; }
   if (state === 'ceremony') return;
@@ -622,7 +638,7 @@ function update(dt) {
     liveTimer += dt;
     if (liveTimer > 0.25) {
       liveTimer = 0;
-      room.sendLive({ p: Math.round(myProgress()), st: myStCode(), pd: Math.round(mySubDist()) });
+      room.sendLive({ p: Math.round(myProgress()), st: myStCode(), pd: Math.round(mySubDist()), rid: raceId, ...shootLive() });
     }
   }
 
@@ -893,6 +909,7 @@ function frame(now) {
     renderer.render(scene, camera);
     return;
   }
+  if (state === 'watch' || state === 'watchwait') { frameWatch(dt, now); return; }
   placeSkier(dt);
   const others = (race && state !== 'menu' && state !== 'lobby') ? competitors() : [];
   // andra spelare som åkare i 3D (multiplayer)
@@ -922,6 +939,198 @@ function frame(now) {
   snow(camera, dt, race ? wind.at(race.time) : 0);
   renderer.render(scene, camera);
 }
+
+// ---------- Tittarläge ("bara titta"): som en tv-sändning ----------
+// Man går in i ett rum utan att vara med i loppet. Kameran följer åkarna snett ovanifrån
+// och växlar mellan dem: den som kommer in på skjutvallen prioriteras (ledaren först),
+// annars roterar den mellan ledaren, tvåan och trean. Tryck på en rad i resultatlistan
+// för att följa den åkaren. Resultatlista, karta och vallpanel uppdateras live.
+let watch = null;
+let watchMap = null;
+
+async function enterWatch(code) {
+  const msg = $('mp-msg');
+  if (!db) { msg.textContent = 'Ansluter … försök igen om en sekund'; return; }
+  code = (code || '').toUpperCase();
+  if (!/^[A-Z]{4}$/.test(code)) { msg.textContent = 'Koden är fyra bokstäver'; return; }
+  const r = new Room(db, code, me);
+  if (!(await r.exists())) { msg.textContent = `Hittar inget rum med koden ${code}`; return; }
+  room = r;
+  mode = 'watch';
+  msg.textContent = '';
+  watch = { focus: null, switchAt: 0, manualUntil: 0, rot: 0, lastSt: new Map(), lastShots: new Map(), cut: true };
+  state = 'watchwait';
+  showUI();
+  room.listen(onWatch);
+}
+
+function watchClock() {
+  const t0 = room?.data?.startAt;
+  return t0 ? Math.max(0, (db.now() - t0) / 1000) : 0;
+}
+
+function onWatch(d) {
+  if (!room || mode !== 'watch') return;
+  if (!d) { toMenu(); return; }
+  const rc = getCourse(d.course);
+  if (rc.id !== courseCfg.id && !courseLoading) selectCourse(rc.id, false);
+  if ((d.format || 'sprint') !== fmt.id) setFormat(d.format || 'sprint', false);
+  const ps = room.players();
+  const racing = ps.some((p) => p.status === 'racing');
+  const starting = d.startAt && d.startAt > db.now() - 2000 && ps.some((p) => p.status === 'lobby' && p.ready);
+  if ((racing || starting) && d.startAt && (state === 'watchwait' || raceId !== (d.raceId || 0))) {
+    raceId = d.raceId || 0;
+    race = { lap: 1, s: 0, time: 0, penaltyTime: 0, misses: [], splits: [] };
+    wind = new Wind(seeded(d.startAt), course.env.wind);
+    rivals.shoots = fmt.shoots;
+    rivals.track = track;
+    ceremonyShown = false;
+    watch.focus = null; watch.cut = true; watch.lastSt.clear(); watch.lastShots.clear();
+    state = 'watch';
+    showUI();
+  }
+  if (state === 'watch' && !racing && !starting) {
+    const done = ps.filter((p) => p.status === 'done' && p.result?.raceId === raceId).sort((a, b) => a.result.time - b.result.time);
+    if (done.length && !ceremonyShown) { ceremonyShown = true; setTimeout(() => startCeremony(done), 2500); }
+  }
+  if (state === 'watchwait') renderWatchWait();
+}
+
+function renderWatchWait() {
+  if (!room) return;
+  const d = room.data || {};
+  const ps = room.players();
+  const left = d.startAt ? Math.ceil((d.startAt - db.now()) / 1000) : 0;
+  $('w-wait').innerHTML = `<h2>Rum ${room.code}</h2><p class="sub">${getCourse(d.course).name} · ${getFormat(d.format).name} · du tittar</p>` +
+    `<ul>${ps.map((p) => `<li><span class="dot" style="background:${COLOR_CSS(p.color)}"></span>${esc(p.name)}<span style="margin-left:auto;opacity:.7">${p.status === 'racing' ? 'i loppet' : p.status === 'done' ? 'i mål' : p.ready ? 'redo' : 'väntar'}</span></li>`).join('') || '<li>Ingen i rummet än</li>'}</ul>` +
+    `<p class="note">${left > 0 ? `Start om ${left} s …` : 'Loppet visas här så fort det startar.'}</p>`;
+}
+
+const ordinal = (n) => `${n}:${n === 1 || n === 2 ? 'a' : 'e'}`;
+function statusText(c) {
+  if (c.done) return null;
+  const lap = Math.min(fmt.laps, Math.floor(c.progress / track.n) + 1);
+  if (c.st === 'r') return 'Vallen';
+  if (c.st === 'p') return 'Straffrunda';
+  if (c.st === 'm') return 'Upploppet';
+  return `Varv ${lap}/${fmt.laps}`;
+}
+const seriesDots = (str) => [...str].map((x) => (x === '1' ? '●' : '○')).join('');
+
+function frameWatch(dt, now) {
+  const t = now / 1000;
+  if (state === 'watchwait') {
+    renderWatchWait();
+    const a = t / 14, [sx, sz] = course.stadium, y = course.stadiumElev;
+    camera.position.set(sx + Math.cos(a) * 70, y + 28, sz + Math.sin(a) * 70);
+    camera.lookAt(sx, y, sz);
+    world.animateCrowd(t);
+    snow(camera, dt, 0);
+    renderer.render(scene, camera);
+    return;
+  }
+  const clock = watchClock();
+  race.time = clock;
+  const list = competitors();
+  rivals.update(dt, list, t, camera.position);
+  const order = standings(list);
+  const leader = order[0];
+  // ---- regi: vem följer kameran? ----
+  const racingNow = order.filter((c) => !c.done);
+  let arrival = null;
+  for (const c of racingNow) {
+    if (c.st === 'r' && watch.lastSt.get(c.id) !== 'r' && (!arrival || order.indexOf(c) < order.indexOf(arrival))) arrival = c;
+    watch.lastSt.set(c.id, c.st);
+  }
+  const cur = list.find((c) => c.id === watch.focus);
+  if (t > watch.manualUntil) {
+    if (arrival && !(cur && cur.st === 'r' && !cur.done)) { setFocus(arrival.id, t + 14); }
+    else if (!cur || cur.done || t > watch.switchAt) {
+      if (cur && cur.st === 'r' && !cur.done) watch.switchAt = t + 3; // stanna kvar så länge hen skjuter
+      else if (racingNow.length) {
+        const n = Math.min(3, racingNow.length);
+        const pick = racingNow[watch.rot++ % n];
+        setFocus(pick.id, t + (racingNow.indexOf(pick) === 0 ? 11 : 7));
+      } else if (leader) setFocus(leader.id, t + 10);
+    }
+  }
+  // ---- kamera ----
+  const fr = rivals.map.get(watch.focus);
+  const fc = list.find((c) => c.id === watch.focus);
+  if (fr) {
+    const p = fr.sk.root.position, yaw = fr.sk.root.rotation.y;
+    const dx = Math.sin(yaw), dz = Math.cos(yaw);
+    const tp = new THREE.Vector3(), tl = new THREE.Vector3();
+    if (fc && fc.st === 'r' && !fc.done && fr.sk.root.position.distanceTo(new THREE.Vector3(course.rangePos[0], course.stadiumElev, course.rangePos[1])) < 60) {
+      // skjutvallen: snett bakifrån och ovanifrån skytten, ut mot tavlorna
+      const [nx, nz] = course.normal, [tx, tz] = course.startDir;
+      tp.set(p.x - nx * 6 + tx * 4, p.y + 3.6, p.z - nz * 6 + tz * 4);
+      tl.set(p.x + nx * 14, p.y + 0.6, p.z + nz * 14);
+    } else {
+      // åkning: filmkamera snett bakifrån ovanifrån
+      tp.set(p.x - dx * 9 + dz * 4, p.y + 5, p.z - dz * 9 - dx * 4);
+      tl.set(p.x + dx * 5, p.y + 0.9, p.z + dz * 5);
+    }
+    const ground = course.terrainHeight(tp.x, tp.z) + 1.5;
+    if (tp.y < ground) tp.y = ground;
+    const k = watch.cut ? 1 : 1 - Math.exp(-dt * 2.2);
+    watch.cut = false;
+    camPos.lerp(tp, k); camLook.lerp(tl, k);
+    camera.position.copy(camPos);
+    camera.lookAt(camLook);
+    sun.position.set(p.x + SUN_DIR.x * 120, p.y + SUN_DIR.y * 120, p.z + SUN_DIR.z * 120);
+    sun.target.position.copy(p);
+  }
+  // ---- ljud från fokusåkarens skytte ----
+  if (fc && opts.sound) {
+    const prev = watch.lastShots.get(fc.id) ?? '';
+    if (fc.sh.length > prev.length && fc.sh.startsWith(prev)) {
+      const hit = fc.sh[fc.sh.length - 1] === '1';
+      sfx.shot(); if (hit) { sfx.hit(); setTimeout(() => sfx.hitCheer(), 150); } else { sfx.miss(); setTimeout(sfx.ooh, 200); }
+    }
+  }
+  for (const c of list) watch.lastShots.set(c.id, c.sh);
+  // ---- grafik ----
+  $('w-clock').textContent = fmtTime(clock).replace(/\.\d$/, '');
+  $('w-title').textContent = `${fmt.name} · ${courseCfg.short}`;
+  const best = order.find((c) => c.done);
+  $('w-board').innerHTML = `<div class="hd">RESULTAT · ${courseCfg.short.toUpperCase()}</div>` + order.map((c, i) => {
+    const gap = c.done ? (best && c !== best ? `+${(c.time - best.time).toFixed(1)}` : fmtTime(c.time)) : (i === 0 || leader.progress - c.progress < 5 ? statusText(c) : `${statusText(c)} · −${Math.round(leader.progress - c.progress)} m`);
+    const ser = c.sr ? c.sr.split(' ').map(seriesDots).join('  ') : '';
+    return `<div class="row ${c.id === watch.focus ? 'focus' : ''}" data-id="${c.id}"><span class="n">${i + 1}</span><span class="dot" style="background:${COLOR_CSS(c.color)}"></span><span class="nm">${esc(c.name)}</span><span class="st">${gap}</span>${ser ? `<span></span><span></span><span class="sr">${ser}</span>` : ''}</div>`;
+  }).join('');
+  const atRange = order.filter((c) => !c.done && c.st === 'r' && (c.sh || '').length >= 0 && c.progress > 0);
+  $('w-range').innerHTML = atRange.length ? `<div class="hd">SKJUTVALLEN</div>` + atRange.map((c) => {
+    const dots = Array.from({ length: 5 }, (_, i) => (i < c.sh.length ? `<i class="${c.sh[i] === '1' ? 'hit' : 'miss'}"></i>` : '<i></i>')).join('');
+    return `<div class="row"><span class="k">${c.k}</span><span class="dot" style="background:${COLOR_CSS(c.color)};width:9px;height:9px;border-radius:50%"></span><span class="nm">${esc(c.name)}</span><span class="t">${dots}</span></div>`;
+  }).join('') : '';
+  if (fc) {
+    const pos = order.indexOf(fc) + 1;
+    $('w-focus').innerHTML = `<span class="dot" style="background:${COLOR_CSS(fc.color)}"></span>${esc(fc.name)} <small>${ordinal(pos)} · ${fc.done ? 'i mål ' + fmtTime(fc.time) : statusText(fc)}</small>`;
+  } else $('w-focus').innerHTML = '';
+  if (!watchMap || watchMap.course !== track) watchMap = new Minimap($('w-map'), track);
+  const fpos = fc ? posOf(fc) : { x: course.stadium[0], z: course.stadium[1] };
+  watchMap.draw(fpos, list.filter((c) => c !== fc).map((c) => ({ ...posOf(c), color: COLOR_CSS(c.color) })), '');
+  updateFlags(world.flags, wind.at(clock), t);
+  world.animateCrowd(t);
+  world.setClock(fmtTime(clock));
+  snow(camera, dt, wind.at(clock));
+  renderer.render(scene, camera);
+}
+
+function setFocus(id, until) {
+  if (watch.focus !== id) watch.cut = true; // klipp som i tv
+  watch.focus = id;
+  watch.switchAt = until;
+}
+$('w-board').addEventListener('click', (e) => {
+  const row = e.target.closest('.row');
+  if (!row || !watch) return;
+  setFocus(row.dataset.id, performance.now() / 1000 + 20);
+  watch.manualUntil = performance.now() / 1000 + 20;
+});
+$('w-leave').addEventListener('click', toMenu);
+$('btn-watch').addEventListener('click', async () => { await prepare(); enterWatch($('in-code').value.trim()); });
 
 // ---------- Inmatning ----------
 function holdButton(el, onDown, onUp) {
@@ -1225,7 +1434,7 @@ requestAnimationFrame(frame);
 window.__game = {
   get state() { return state; }, get race() { return race; }, ski, get course() { return course; }, rivals, get shooting() { return shooting; },
   get room() { return room; }, get db() { return db; }, get ghosts() { return ghosts; }, me,
-  get ceremony() { return ceremony; }, camera, renderer, get world() { return world; }, useLocalDb: async () => { const m = await import('./net.js?v=202611182050'); db = await m.connectLocal(); },
+  get ceremony() { return ceremony; }, camera, renderer, get world() { return world; }, useLocalDb: async () => { const m = await import('./net.js?v=202611182109'); db = await m.connectLocal(); },
   step: (dt) => update(dt), start: newRace,
   debugCeremony: (list) => { state = 'ceremony'; ceremony.start(list); showUI(); },
 };
