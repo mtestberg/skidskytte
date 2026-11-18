@@ -279,6 +279,34 @@ export function setCrowd(level) {
   setMurmur(level);
 }
 
+// Prisutdelningens musik: spelas en gång (22 s), tonas ut när man lämnar prisutdelningen
+let anthem = null;
+export function playAnthem() {
+  stopAnthem(0.05);
+  const b = samples.anthem;
+  if (!ac || !b) return;
+  const src = ac.createBufferSource();
+  src.buffer = b;
+  const g = ac.createGain();
+  g.gain.setValueAtTime(0, ac.currentTime);
+  g.gain.linearRampToValueAtTime(0.85, ac.currentTime + 0.4);
+  src.connect(g).connect(master);
+  src.start();
+  anthem = { src, g };
+  src.onended = () => { if (anthem && anthem.src === src) anthem = null; };
+}
+export function stopAnthem(fade = 1.2) {
+  if (!anthem || !ac) return;
+  const { src, g } = anthem;
+  anthem = null;
+  const t = ac.currentTime;
+  g.gain.cancelScheduledValues(t);
+  g.gain.setValueAtTime(g.gain.value, t);
+  g.gain.linearRampToValueAtTime(0, t + fade);
+  try { src.stop(t + fade + 0.05); } catch { /* redan slut */ }
+}
+export const anthemPlaying = () => !!anthem;
+
 // Snabbt, direkt jubel vid träff (hit.mp3, börjar 1 s in i originalfilen). Reserv: vanliga jublet.
 export function hitCheer() {
   if (!ac) return;
@@ -302,7 +330,7 @@ export function cheer(strength = 1, dur = 2.2) {
 
 // ---------- Inspelade ljud (assets/sfx) ----------
 // Laddas när ljudet startas; saknas en fil används det syntetiska ljudet i stället.
-const SAMPLE_FILES = { ooh: 'assets/sfx/ooh.mp3', cheer: 'assets/sfx/cheer.mp3', crowd: 'assets/sfx/crowd.mp3', hit: 'assets/sfx/hit.mp3' };
+const SAMPLE_FILES = { ooh: 'assets/sfx/ooh.mp3', cheer: 'assets/sfx/cheer.mp3', crowd: 'assets/sfx/crowd.mp3', hit: 'assets/sfx/hit.mp3', anthem: 'assets/sfx/anthem.mp3' };
 const samples = {};
 function loadSamples() {
   for (const [name, url] of Object.entries(SAMPLE_FILES)) {

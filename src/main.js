@@ -175,7 +175,7 @@ function showUI() {
   $('btn-again').classList.toggle('hidden', mode === 'mp');
   $('btn-r-lobby').classList.toggle('hidden', mode !== 'mp');
   $('r-wait').classList.toggle('hidden', mode !== 'mp');
-  if (state !== 'ceremony') ceremony.stop();
+  if (state !== 'ceremony') { ceremony.stop(); sfx.stopAnthem(); }
   camInit = false;
   requestAnimationFrame(resize);
 }
@@ -469,7 +469,7 @@ function startCeremony(order) {
   $('c-list').innerHTML = '<div class="res">' + order.map((p, i) =>
     `<div class="${p.id === me.id ? 'me' : ''}"><span class="n">${i + 1}</span><span class="dot" style="background:${COLOR_CSS(p.color)}"></span><span class="nm">${esc(p.name)}</span><span class="tm">${fmtTime(p.result.time)}</span></div>`).join('') + '</div>';
   showUI();
-  if (opts.sound) { sfx.beep(true); setTimeout(() => sfx.beep(true), 400); }
+  if (opts.sound) { sfx.playAnthem(); setTimeout(() => sfx.cheer(1, 4), 300); }
 }
 
 function backToLobby() {
@@ -703,7 +703,8 @@ function updateAmbience() {
 function arenaCheerLevel() {
   if (!race || state === 'menu' || state === 'lobby') return 0;
   if (state === 'countdown') return 0.55;
-  if (state === 'done' || state === 'ceremony') return 0.7;
+  if (state === 'ceremony') return sfx.anthemPlaying() ? 0.25 : 0.6;   // musiken får höras
+  if (state === 'done') return 0.7;
   if (state === 'arrive' || state === 'range') return 0.12;
   if (state === 'penalty') return 0.3;
   if (race.onStraight) return 0.75 + 0.35 * (race.finishDist / FINISH_LEN); // förbi läktaren mot mål
