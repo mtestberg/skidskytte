@@ -1,8 +1,8 @@
 // 3D-värld: terräng, himmel, skog, stadion och åkaren.
 import * as THREE from 'three';
-import { terrainHeight, smooth } from './course.js';
+import { smooth } from './course.js';
 
-const SIZE = 1500;
+const SIZE_DEFAULT = 1500;
 const SEG = 150;
 
 export function buildWorld(scene, course) {
@@ -41,7 +41,8 @@ export function buildWorld(scene, course) {
     scene.add(cap);
   }
 
-  // Terräng
+  // Terräng (riktig höjdkarta täcker hm.size meter, annars procedurell)
+  const SIZE = course.hm ? Math.min(2400, course.hm.size * course.k) : SIZE_DEFAULT;
   const geo = new THREE.PlaneGeometry(SIZE, SIZE, SEG, SEG);
   geo.rotateX(-Math.PI / 2);
   const pos = geo.attributes.position;
@@ -52,7 +53,7 @@ export function buildWorld(scene, course) {
   const tmp = new THREE.Color();
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i), z = pos.getZ(i);
-    let h = terrainHeight(x, z);
+    let h = course.terrainHeight(x, z);
     const [d, e] = course.nearest(x, z);
     const w = smooth(16, 6, d);
     h = h * (1 - w) + (e - 0.08) * w;
@@ -130,7 +131,7 @@ export function buildWorld(scene, course) {
   const m = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), p = new THREE.Vector3();
   spots.forEach(([x, z], i) => {
     const [d, e] = course.nearest(x, z);
-    let h = terrainHeight(x, z);
+    let h = course.terrainHeight(x, z);
     const w = smooth(16, 6, d);
     h = h * (1 - w) + e * w;
     const s = 0.7 + Math.random() * 0.8;

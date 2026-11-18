@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { Course, LAP_LEN, LAPS, PENALTY_LEN, TIME_SCALE } from './course.js';
+import { Course, loadCourseData, LAP_LEN, LAPS, PENALTY_LEN, TIME_SCALE } from './course.js';
 import { Skiing } from './skiing.js';
 import { Shooting } from './shooting.js';
 import { buildWorld, buildSkier, animateSkier, updateFlags } from './world.js';
@@ -46,7 +46,8 @@ sun.shadow.bias = -0.0005;
 scene.add(sun, sun.target);
 const SUN_DIR = new THREE.Vector3(-0.5, 0.75, 0.35).normalize();
 
-const course = new Course();
+// Riktig bana om data/course.json finns, annars procedurell
+const course = new Course(await loadCourseData());
 const world = buildWorld(scene, course);
 let wind = new Wind();
 const skier = buildSkier();
