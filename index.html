@@ -6,10 +6,15 @@
   <meta name="theme-color" content="#0b1622" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Skidskytte" />
   <title>Skidskytte – sprint</title>
-  <link rel="icon" href="data:," />
-  <link rel="stylesheet" href="style.css" />
-  <script type="importmap">{ "imports": { "three": "./vendor/three.module.min.js" } }</script>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" type="image/svg+xml" href="assets/icons/icon.svg" />
+  <link rel="icon" type="image/png" sizes="64x64" href="assets/icons/icon-64.png" />
+  <link rel="apple-touch-icon" href="assets/icons/icon-180.png" />
+  <link rel="stylesheet" href="style.css?v=202611181940" />
+  <script type="importmap">{ "imports": { "three": "./vendor/three.module.min.js?v=r170" } }</script>
 </head>
 <body>
   <div id="stage"></div>
@@ -74,6 +79,8 @@
       <h1>Skidskytte</h1>
       <p class="sub">Sprint · Le Grand-Bornand · dam 3 × 2 km</p>
       <input id="in-name" class="field" maxlength="16" placeholder="Ditt namn" autocomplete="nickname" />
+      <p class="note name-note">Namnet syns för alla i topplistan och i rummen. Använd gärna ett smeknamn.</p>
+      <p id="install-hint" class="note hidden"></p>
       <div id="menu-main">
         <div class="row">
           <button id="btn-start" class="primary">Träna</button>
@@ -104,6 +111,16 @@
         <p><b>Skytteträning:</b> Du hamnar direkt på vallen och skjuter så många serier du vill. Byt mellan liggande och stående, och välj med vilken puls varje serie börjar (lugn, efter åkning eller maxpuls).</p>
         <p><b>Dator:</b> J = stavtag, K = skär (mellanslag = båda). Skytte: musen drar, mellanslag = håll andan, Enter = skjut.</p>
       </details>
+      <details class="about">
+        <summary>Om spelet och licenser</summary>
+        <p><b>Terräng:</b> Höjddatan runt banan i Le Grand-Bornand är bearbetad (utjämnad och nedskalad) från Copernicus DEM GLO-30.<br />
+        Produced using Copernicus WorldDEM-30 © DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018 provided under COPERNICUS by the European Union and ESA; all rights reserved.<br />
+        The organisations in charge of the Copernicus programme by law or by delegation do not incur any liability for any use of the Copernicus WorldDEM-30.</p>
+        <p><b>Banan</b> är en egen slinga ritad utifrån terrängen, inte den officiella tävlingsbanan.</p>
+        <p><b>Ljud:</b> publikljud från Freesound (krizin, alaskarobotics – CC0 1.0) och Pixabay (soundreality, leo_music_production m.fl. – Pixabay Content License). Övriga ljud är syntetiserade i spelet.</p>
+        <p><b>3D:</b> <a href="https://threejs.org" target="_blank" rel="noopener">three.js</a> (MIT-licens, © three.js authors). <b>Multiplayer och topplista:</b> Firebase Realtime Database.</p>
+        <p>Namn du skriver in och dina tider visas öppet i topplistan och för andra i samma rum. Inga andra uppgifter sparas.</p>
+      </details>
       <p id="best" class="sub"></p>
     </div>
   </div>
@@ -125,10 +142,16 @@
 
   <div id="lobby" class="overlay hidden">
     <div class="card">
-      <p class="sub">Rum</p>
-      <h1 id="l-code" class="bigcode">ABCD</h1>
+      <div class="room-head">
+        <div>
+          <p class="sub">Rum</p>
+          <h1 id="l-code" class="bigcode">ABCD</h1>
+          <button id="btn-share" class="link">Dela länk</button>
+        </div>
+        <canvas id="l-qr" width="132" height="132" title="Skanna för att gå med"></canvas>
+      </div>
       <ol class="steps">
-        <li>Dela koden med de andra.</li>
+        <li>Dela koden, eller låt de andra skanna QR-koden med kameran.</li>
         <li><b>Vänta med att trycka Redo</b> tills alla som ska vara med syns i listan.</li>
         <li>När alla trycker Redo startar loppet efter 10 s. Ingen start förrän <b>alla i rummet</b> är redo.</li>
       </ol>
@@ -164,6 +187,6 @@
   </div>
 
   <div id="err" class="hidden"></div>
-  <script type="module" src="src/main.js"></script>
+  <script type="module" src="src/main.js?v=202611181940"></script>
 </body>
 </html>

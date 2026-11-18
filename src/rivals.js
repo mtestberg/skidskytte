@@ -2,8 +2,8 @@
 // Live-positionen kommer 4 ggr/s (p = total sträcka, st = läge, pd = sträcka i läget),
 // så här jämnas rörelsen ut: farten skattas och positionen förutsägs mellan uppdateringarna.
 import * as THREE from 'three';
-import { LAP_LEN, TIME_SCALE, FINISH_LEN } from './course.js';
-import { buildSkier, animateSkier } from './world.js';
+import { LAP_LEN, TIME_SCALE, FINISH_LEN } from './course.js?v=202611181940';
+import { buildSkier, animateSkier } from './world.js?v=202611181940';
 
 function nameTag(name, color) {
   const c = document.createElement('canvas');

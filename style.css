@@ -173,3 +173,13 @@ button.link { background: none; border: 0; color: #9fd0ff; font-size: 15px; padd
 #rp-bar button.chip:active { background: rgba(124,252,154,0.35); }
 #rp-bar .stat { border-color: transparent; }
 #shoot-ui.practice .shoot-top { top: max(48px, calc(env(safe-area-inset-top) + 40px)); }
+
+/* Om spelet och licenser */
+details.about { margin-top: 8px; font-size: 12px; opacity: 0.85; text-align: left; }
+details.about p { margin: 6px 0; line-height: 1.4; }
+details.about a { color: #9fd3ff; }
+
+/* Rum: kod + QR-kod */
+.room-head { display: flex; gap: 16px; align-items: center; justify-content: center; }
+#l-qr { width: 110px; height: 110px; border-radius: 8px; background: #fff; image-rendering: pixelated; }
+.name-note { margin: 4px 0 2px; font-size: 12px; opacity: 0.7; }

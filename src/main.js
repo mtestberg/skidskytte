@@ -1,16 +1,17 @@
 import * as THREE from 'three';
-import { Course, loadCourseData, LAP_LEN, LAPS, PENALTY_LEN, TIME_SCALE, FINISH_LEN, JOIN_S } from './course.js';
-import { Skiing } from './skiing.js';
-import { Shooting, AIM_LIMIT } from './shooting.js';
-import { buildWorld, buildSkier, animateSkier, updateFlags, SUN_DIR } from './world.js';
-import { createSnow } from './scenery.js';
-import { drawPendulum, Minimap, Profile, drawFlag, fmtTime } from './hud.js';
-import { Wind } from './wind.js';
-import { connect } from './net.js';
-import { Room, makeCode, makeId, standings, GhostRecorder, decodeGhost, ghostAt, COLOR_CSS } from './mp.js';
-import { Ceremony } from './ceremony.js';
-import { Rivals } from './rivals.js';
-import * as sfx from './audio.js';
+import { Course, loadCourseData, LAP_LEN, LAPS, PENALTY_LEN, TIME_SCALE, FINISH_LEN, JOIN_S } from './course.js?v=202611181940';
+import { Skiing } from './skiing.js?v=202611181940';
+import { Shooting, AIM_LIMIT } from './shooting.js?v=202611181940';
+import { buildWorld, buildSkier, animateSkier, updateFlags, SUN_DIR } from './world.js?v=202611181940';
+import { createSnow } from './scenery.js?v=202611181940';
+import { drawPendulum, Minimap, Profile, drawFlag, fmtTime } from './hud.js?v=202611181940';
+import { Wind } from './wind.js?v=202611181940';
+import { connect } from './net.js?v=202611181940';
+import { Room, makeCode, makeId, standings, GhostRecorder, decodeGhost, ghostAt, COLOR_CSS } from './mp.js?v=202611181940';
+import { Ceremony } from './ceremony.js?v=202611181940';
+import { Rivals } from './rivals.js?v=202611181940';
+import qrcode from '../vendor/qrcode.js';
+import * as sfx from './audio.js?v=202611181940';
 
 const $ = (id) => document.getElementById(id);
 window.addEventListener('error', (e) => { const el = $('err'); el.textContent = 'Fel: ' + e.message; el.classList.remove('hidden'); });
@@ -381,6 +382,61 @@ function playerName() {
   return me.name;
 }
 
+// ---------- Dela rum: länk + QR-kod ----------
+const roomUrl = (code) => `${location.origin}${location.pathname}?rum=${code}`;
+function drawRoomQR(code) {
+  const c = $('l-qr');
+  try {
+    const qr = qrcode(0, 'M');
+    qr.addData(roomUrl(code));
+    qr.make();
+    const n = qr.getModuleCount(), q = 2, cell = Math.floor(c.width / (n + q * 2));
+    const off = Math.floor((c.width - cell * n) / 2);
+    const g = c.getContext('2d');
+    g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);
+    g.fillStyle = '#0b1622';
+    for (let r = 0; r < n; r++) for (let k = 0; k < n; k++) if (qr.isDark(r, k)) g.fillRect(off + k * cell, off + r * cell, cell, cell);
+    c.classList.remove('hidden');
+  } catch { c.classList.add('hidden'); }
+}
+$('btn-share').addEventListener('click', async () => {
+  if (!room) return;
+  const url = roomUrl(room.code), text = `Kör skidskytte med mig! Rumskod ${room.code}`;
+  try {
+    if (navigator.share) await navigator.share({ title: 'Skidskytte', text, url });
+    else { await navigator.clipboard.writeText(url); $('l-msg').textContent = 'Länken är kopierad'; }
+  } catch { /* avbrutet */ }
+});
+// Tips om att lägga spelet på hemskärmen (helskärm, egen ikon). Visas inte om det redan är installerat.
+{
+  const standalone = matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches || navigator.standalone;
+  const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const hint = $('install-hint');
+  if (!standalone && ios) {
+    hint.innerHTML = 'Tips: tryck på <b>Dela</b> och välj <b>Lägg till på hemskärmen</b> så öppnas spelet i helskärm.';
+    hint.classList.remove('hidden');
+  }
+  let deferred = null;
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferred = e;
+    hint.innerHTML = '<button id="btn-install" class="link">Installera spelet på hemskärmen</button> – öppnas i helskärm.';
+    hint.classList.remove('hidden');
+    $('btn-install').addEventListener('click', async () => { deferred.prompt(); await deferred.userChoice; hint.classList.add('hidden'); });
+  });
+}
+// Öppnas spelet via en rumslänk (?rum=KOD) fylls koden i och Tävla-panelen visas
+{
+  const code = new URLSearchParams(location.search).get('rum');
+  if (code && /^[a-zA-Z]{4}$/.test(code)) {
+    $('in-code').value = code.toUpperCase();
+    $('menu-main').classList.add('hidden');
+    $('mp-panel').classList.remove('hidden');
+    $('mp-msg').textContent = `Rum ${code.toUpperCase()}: skriv ditt namn och tryck Gå med`;
+    history.replaceState(null, '', location.pathname); // så att en omladdning inte hamnar i rummet igen
+  }
+}
+
 async function enterRoom(code, create) {
   const msg = $('mp-msg');
   if (!playerName()) { msg.textContent = 'Skriv ditt namn först'; $('in-name').focus(); return; }
@@ -388,13 +444,14 @@ async function enterRoom(code, create) {
   code = code.toUpperCase();
   if (!/^[A-Z]{4}$/.test(code)) { msg.textContent = 'Koden är fyra bokstäver'; return; }
   const r = new Room(db, code, me);
-  if (create) await r.create();
+  if (create) { await r.create(); Room.cleanup(db); } // städa gamla rum i bakgrunden
   else if (!(await r.exists())) { msg.textContent = `Hittar inget rum med koden ${code}`; return; }
   await r.join();
   room = r;
   mode = 'mp';
   msg.textContent = '';
   $('l-code').textContent = code;
+  drawRoomQR(code);
   state = 'lobby';
   showUI();
   room.listen(onRoom);
@@ -1067,7 +1124,7 @@ requestAnimationFrame(frame);
 window.__game = {
   get state() { return state; }, get race() { return race; }, ski, course, rivals, get shooting() { return shooting; },
   get room() { return room; }, get db() { return db; }, get ghosts() { return ghosts; }, me,
-  ceremony, camera, renderer, useLocalDb: async () => { const m = await import('./net.js'); db = await m.connectLocal(); },
+  ceremony, camera, renderer, useLocalDb: async () => { const m = await import('./net.js?v=202611181940'); db = await m.connectLocal(); },
   step: (dt) => update(dt), start: newRace,
   debugCeremony: (list) => { state = 'ceremony'; ceremony.start(list); showUI(); },
 };

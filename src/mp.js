@@ -13,8 +13,9 @@ export const COLORS = [0xe63946, 0x2a9d8f, 0xf4a261, 0x8e44ad, 0x2b6cb0, 0x43aa8
 export const COLOR_CSS = (c) => '#' + c.toString(16).padStart(6, '0');
 
 export const START_DELAY_MS = 10000;
+const ROOM_TTL_MS = 12 * 3600 * 1000; // rum som inte använts på 12 h städas bort
 export const STALE_MS = 60000; // frånkopplad längre än så → tas bort ur rummet
-import { SERVER_TIME } from './net.js';
+import { SERVER_TIME } from './net.js?v=202611181940';
 
 export function makeCode() {
   const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
@@ -42,7 +43,20 @@ export class Room {
   }
 
   async create() {
-    await this.db.update(this.path, { created: this.db.now(), raceId: 0 });
+    await this.db.update(this.path, { created: this.db.now(), touched: this.db.now(), raceId: 0 });
+  }
+
+  // Städning: tar bort rum som inte använts på ROOM_TTL_MS (körs när någon skapar ett rum).
+  // Rum utan "touched" är gamla rum från före städningen och tas också bort.
+  static async cleanup(db) {
+    try {
+      const old = await db.topBy('rooms', 'touched', 25);
+      const limit = db.now() - ROOM_TTL_MS;
+      await Promise.all(old.filter((r) => !(r.touched > limit)).map((r) => db.remove(`rooms/${r.id}`)));
+      return old.filter((r) => !(r.touched > limit)).length;
+    } catch {
+      return 0; // t.ex. om databasreglerna ännu inte tillåter frågan – inget viktigt
+    }
   }
 
   async join() {
@@ -51,6 +65,7 @@ export class Room {
     const color = COLORS.find((c) => !used.has(c)) ?? COLORS[Object.keys(players).length % COLORS.length];
     this.me.color = color;
     this.joinedAt = this.db.now();
+    await this.db.update(this.path, { touched: this.db.now() });
     await this.register('lobby');
     // Tappas anslutningen (skärmen släcks, man byter app för att dela koden …) tar Firebase
     // bort spelaren. Då registrerar vi oss igen när anslutningen kommer tillbaka – som
@@ -130,7 +145,7 @@ export class Room {
       return;
     }
     if (allReady && !pending) {
-      this.db.update(this.path, { startAt: this.db.now() + (this.delay || START_DELAY_MS), raceId: (this.data.raceId || 0) + 1 });
+      this.db.update(this.path, { startAt: this.db.now() + (this.delay || START_DELAY_MS), raceId: (this.data.raceId || 0) + 1, touched: this.db.now() });
     }
   }
 

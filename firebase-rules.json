@@ -3,6 +3,8 @@
     ".read": false,
     ".write": false,
     "rooms": {
+      ".read": true,
+      ".indexOn": ["touched"],
       "$code": {
         ".read": true,
         ".write": "$code.matches(/^[A-Z]{4}$/)"

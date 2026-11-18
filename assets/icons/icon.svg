@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1c4a7a"/>
+      <stop offset="1" stop-color="#0b1622"/>
+    </linearGradient>
+    <linearGradient id="ski" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ff5a4a"/>
+      <stop offset="1" stop-color="#d8312f"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#bg)"/>
+  <!-- snöig kulle -->
+  <path d="M0 400 Q130 330 256 372 T512 352 V512 H0 Z" fill="#e9f1f8"/>
+  <path d="M0 430 Q150 380 300 410 T512 400 V512 H0 Z" fill="#ffffff"/>
+  <!-- skjuttavla (fem prickar) -->
+  <g transform="translate(256 116)">
+    <rect x="-118" y="-26" width="236" height="52" rx="10" fill="#f4f4f0"/>
+    <g fill="#14181f">
+      <circle cx="-88" cy="0" r="15"/><circle cx="-44" cy="0" r="15"/><circle cx="0" cy="0" r="15"/>
+      <circle cx="44" cy="0" r="15"/><circle cx="88" cy="0" r="15"/>
+    </g>
+    <circle cx="-88" cy="0" r="15" fill="#ffffff"/><circle cx="-44" cy="0" r="15" fill="#ffffff"/>
+  </g>
+  <!-- skida (diagonal, spetsen uppåt höger) -->
+  <g transform="translate(256 292) rotate(-38) scale(1 1.7)">
+    <path d="M-205 -9 H170 Q205 -9 222 -34 Q232 -46 238 -40 Q240 -20 214 0 Q196 12 166 12 H-205 Q-214 12 -214 1.5 Q-214 -9 -205 -9 Z" fill="url(#ski)" stroke="#7a1410" stroke-width="3"/>
+    <rect x="-36" y="-17" width="60" height="10" rx="3" fill="#1d1f24"/>
+    <rect x="-120" y="-3" width="270" height="3" fill="#ffffff" opacity="0.55"/>
+  </g>
+  <!-- skidskyttegevär (diagonal, pipan uppåt vänster) -->
+  <g transform="translate(250 286) rotate(38) scale(-1.12 1.12)">
+    <!-- pipa -->
+    <rect x="40" y="-28" width="190" height="15" rx="5" fill="#20242c"/>
+    <rect x="220" y="-32" width="12" height="20" rx="2" fill="#20242c"/>
+    <!-- diopter -->
+    <rect x="-6" y="-46" width="34" height="14" rx="4" fill="#20242c"/>
+    <rect x="6" y="-34" width="6" height="10" fill="#20242c"/>
+    <!-- kolv/stock i trä -->
+    <path d="M-190 -6 Q-196 22 -184 40 L-150 40 Q-120 16 -90 12 L-40 12 Q-30 30 -10 30 L10 30 Q16 14 34 10 L150 6 Q160 -2 152 -14 L44 -16 Q20 -30 -20 -24 L-80 -20 Q-130 -26 -170 -18 Q-186 -16 -190 -6 Z" fill="#8a5a33" stroke="#4a2c16" stroke-width="3"/>
+    <!-- magasin och avtryckarbygel -->
+    <rect x="-8" y="10" width="20" height="26" rx="3" fill="#20242c"/>
+    <path d="M-36 12 Q-38 30 -22 32 L-16 32" fill="none" stroke="#20242c" stroke-width="5"/>
+    <!-- kindstöd -->
+    <path d="M-140 -22 Q-110 -40 -78 -24 Z" fill="#6e4425"/>
+  </g>
+</svg>

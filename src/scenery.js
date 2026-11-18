@@ -2,7 +2,7 @@
 // pistat spår (manchesterränder + klassiska spår), markeringspinnar, staket,
 // publik och banderoller vid stadion. Allt är instansierat eller små canvas-texturer.
 import * as THREE from 'three';
-import { FINISH_LEN, PENALTY_LEN } from './course.js';
+import { FINISH_LEN, PENALTY_LEN } from './course.js?v=202611181940';
 
 // ---------- Pistat spår ----------
 // Spårbädden är lite gråblå och tydligt randig (manchester), med en upphöjd

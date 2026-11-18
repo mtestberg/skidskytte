@@ -1,7 +1,7 @@
 // 3D-värld: terräng, himmel, skog, stadion och åkaren.
 import * as THREE from 'three';
-import { smooth } from './course.js';
-import { buildTrack, buildStadiumDetails, buildPortals } from './scenery.js';
+import { smooth } from './course.js?v=202611181940';
+import { buildTrack, buildStadiumDetails, buildPortals } from './scenery.js?v=202611181940';
 
 export const SUN_DIR = new THREE.Vector3(-0.5, 0.75, 0.35).normalize();
 

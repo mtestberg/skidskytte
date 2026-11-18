@@ -33,6 +33,9 @@ python3 -m http.server 8000
 ```
 Öppna http://localhost:8000. För att testa på mobilen i samma nätverk: http://<datorns-ip>:8000.
 
+## Uppdatera spelet
+Kör `node tools/bump-version.mjs` före varje commit som ändrar spelet. Det sätter ett nytt versionsnummer på filerna så att ingen får en blandning av gamla och nya filer ur cachen.
+
 ## Publicera på GitHub Pages
 Settings → Pages → Deploy from a branch → `main` / root.
 
