@@ -72,7 +72,7 @@ export class Minimap {
     return [ox + (x - b.minX) * s, oz + (z - b.minZ) * s];
   }
 
-  draw(me, others = []) {
+  draw(me, others = [], label = '') {
     const { ctx, course } = this;
     const { width: W, height: H } = this.c;
     ctx.clearRect(0, 0, W, H);
@@ -101,6 +101,14 @@ export class Minimap {
       ctx.arc(x, z, 4, 0, Math.PI * 2);
       ctx.fillStyle = o.color || '#9ad';
       ctx.fill();
+    }
+    if (label) {
+      ctx.font = `700 ${Math.round(H * 0.13)}px system-ui, sans-serif`;
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+      ctx.fillStyle = '#fff';
+      ctx.fillText(label, 8, 6);
+      ctx.textBaseline = 'alphabetic';
     }
     // Jag
     const [mx, mz] = this.map(me.x, me.z);

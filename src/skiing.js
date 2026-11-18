@@ -46,6 +46,7 @@ export class Skiing {
     this.onBeat = null;    // callback(power)
     this.onPush = null;
     this.stats = { beats: 0, perfect: 0, pushes: 0, wild: 0 };
+    this.assist = 3;       // de första tagen från stillastående har nästan hela pendeln som träffzon
   }
 
   period(grade) {
@@ -102,7 +103,7 @@ export class Skiing {
 
   // Mycket energi kvar → dyrare; lite kvar → billigare (man blir aldrig helt slut)
   spend(x) {
-    x *= 0.35 + 0.95 * this.energyFrac;
+    x *= 0.4 + 0.45 * this.energyFrac;
     this.energy = clamp(this.energy - x, 0, ENERGY_MAX);
   }
 
@@ -136,12 +137,13 @@ export class Skiing {
     this.pulse += 5.0 * (1 + up * 3.5) * (0.6 + 0.4 * power) * (1.5 - 0.8 * q) * this.pulseGain() * clamp((205 - this.pulse) / 55, 0.15, 1);
     this.pulse = Math.min(PULSE_MAX, this.pulse);
     // Energi: grundkostnad (mer i uppför) + extra för dålig träff
-    this.spend(0.72 * (1 + up * 4) * (0.7 + 0.3 * power) + (1 - q) * 1.0);
+    this.spend(0.9 * (1 + up * 4) * (0.7 + 0.3 * power) + (1 - q) * 1.0);
     this.lastPushAt = this.now;
     this.pushAnim = 1;
     this.pushSide *= -1;
     this.lastPower = power;
     this.stats.pushes++;
+    if (this.assist > 0) this.assist--;
 
     const avgOff = ((p ?? 0) + (e ?? 0)) / ((p != null) + (e != null));
     if (p == null || e == null) this.fb('Bara en knapp', 'mid');
@@ -155,7 +157,9 @@ export class Skiing {
     this.now += dt;
     this.grade = grade;
     this.T = this.period(grade);
-    this.W = Math.min(0.17, this.T * 0.3);
+    // Står man still (start, efter vallen, eller stannat i en backe) blir det lätt att komma igång
+    if (this.v < 0.8 && this.assist < 3) this.assist = 3;
+    this.W = this.assist > 0 ? this.T * 0.45 : Math.min(0.17, this.T * 0.3);
 
     if (!this.resolved && this.now >= this.lastBeat + this.W) this.resolve();
     if (this.now >= this.nextBeat) {
@@ -197,6 +201,7 @@ export class Skiing {
 
   // Börja åka igen efter vallen/straffrundan: synka pendeln
   restart() {
+    this.assist = 3;
     this.lastBeat = this.now;
     this.nextBeat = this.now + 0.9;
     this.cur = {};

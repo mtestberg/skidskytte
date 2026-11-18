@@ -311,7 +311,6 @@ function updateHud() {
   const t = fmtTime(race.time);
   $('h-time').textContent = t;
   $('s-time').textContent = t;
-  $('h-lap').textContent = `Varv ${race.lap}/${LAPS}`;
   let dist;
   if (state === 'penalty') dist = `Straffrunda: ${Math.max(0, Math.ceil(race.penaltyLeft))} m`;
   else dist = `${Math.max(0, Math.ceil(LAP_LEN - race.s))} m till ${race.lap < LAPS ? 'vallen' : 'mål'}`;
@@ -364,10 +363,10 @@ function frame(now) {
     let mx, mz;
     if (state === 'penalty') { const p = course.penaltyPoint(race.penaltyDist); mx = p[0]; mz = p[2]; }
     else { const p = course.pointAt(race.s); mx = p[0]; mz = p[2]; }
-    minimap.draw({ x: mx, z: mz });
+    minimap.draw({ x: mx, z: mz }, [], `Varv ${race.lap}/${LAPS}`);
     profile.draw(state === 'penalty' ? course.n : race.s, race.lap < LAPS);
   } else if (state === 'arrive') {
-    minimap.draw({ x: course.rangePos[0], z: course.rangePos[1] });
+    minimap.draw({ x: course.rangePos[0], z: course.rangePos[1] }, [], `Varv ${race.lap}/${LAPS}`);
   }
   updateFlags(world.flags, race ? wind.at(race.time) : wind.at(now / 1000), now / 1000);
   renderer.render(scene, camera);

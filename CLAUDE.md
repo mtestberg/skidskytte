@@ -82,7 +82,7 @@ Regler och format
 1. **Inga extraskott.** 5 skott per skjutning, 150 m straffrunda per missad tavla (som i sprint).
 2. **3–5 minuter per lopp.** Åkningen tidskomprimeras (sträckan rör sig 5× snabbare än verklig fart). Klockan går i realtid under skyttet.
 3. **En sträcka (3 varv) först.** Lagstafett med 4 spelare kan läggas till senare.
-4. **Le Grand-Bornand (Annecy), herrsträcka 7,5 km = 3 × 2,5 km.** Liggande efter varv 1, stående efter varv 2.
+4. **Le Grand-Bornand (Annecy), dambanan 6 km = 3 × 2 km** (ändrat från herrarnas 3 × 2,5 km efter test 3, för kortare åktid). Liggande efter varv 1, stående efter varv 2.
 
 Åkning
 5. **Svängande pendel** med träffzon i mitten.
@@ -110,7 +110,7 @@ Claudes tekniska val
 - Prototypens bana är procedurell (en slinga på exakt 2,5 km med höjdprofil). Byts mot riktig höjddata och spår från Le Grand-Bornand i steg 2.
 
 ### Feedback efter första speltestet (2026-11-18)
-- **Format heter Sprint** (5 skott, straffrunda per miss), inte stafett. Vi behåller 3 × 2,5 km.
+- **Format heter Sprint** (5 skott, straffrunda per miss), inte stafett.
 - **Liggande var för lätt**, stående lagom. Liggande görs svårare (mer svaj).
 - **Högre puls i åkningen** så att allt blir lite svårare.
 - **Energi**: en total energibudget för loppet (0–100 %).
@@ -120,6 +120,12 @@ Claudes tekniska val
   - Vid noll energi kan man fortsätta åka, men skjuten blir svagare (lägre fart).
   - (Justerat efter test 2) Energin ska räcka längre: förbrukningen är högre när man har mycket kvar och lägre när man har lite kvar, och vid 0 % är skjuten bara ca 20 % svagare, så man blir aldrig helt förslöad.
 - **Nedräkning 3-2-1-KÖR** vid start så att man förstår när man ska börja åka.
+
+### Feedback efter test 3 (2026-11-18)
+- **Lätt att komma igång**: de första 2–3 tagen från stillastående (start, efter vallen/straffrundan, eller om man stannat i en backe) har en träffzon som täcker nästan hela pendeln.
+- **Mindre energiförbrukning**, särskilt i början när energin är hög (förbrukningen planar ut i stället för att rasa).
+- **HUD**: hastigheten står överst (tid · fart · avstånd); varvet visas på minikartan.
+- **Dambanan 3 × 2 km** i stället för 3 × 2,5 km.
 - **Höjdkurva** för varvet under minikartan, med en prick för var man är.
 - **Vind i skyttet**: sidvind som varierar under loppet och flyttar träffen åt det håll det blåser. Flagga visar vinden (i kikarvyn och på vallen); ingen siffra, man läser flaggan som i verkligheten.
 
@@ -132,5 +138,6 @@ Till steg 3 (multiplayer)
 - Steg 1 (prototyp för en spelare) klar 2026-11-18: pendel, puls, åkning, liggande/stående skytte, straffrundor, tid, minikarta, ljud. Ett helt lopp med bra åkning och fullt skytte tar ca 4:15.
 - Repo: github.com/mtestberg/skidskytte (publikt). GitHub Pages: https://mtestberg.github.io/skidskytte/ (Maja slår på Pages själv i Settings → Pages; API:t är inte nåbart härifrån). Även en privat claude.ai-länk finns för test (gyro fungerar inte där).
 - 2026-11-18: feedback från första testet inbyggd: energi, högre puls, svårare liggande, vind + flaggor, höjdkurva, Sprint-namn. Efter energijusteringen (test 2): perfekt ≈ 4:00 med ~22 % kvar, bra ≈ 4:15 med ~16 %, glid i utför ~30 %, slarvig ≈ 5:20 med ~3 % (varv 3 ca 10 % långsammare, inte dubbelt så långsamt som innan). Nedräkning 3-2-1-KÖR vid start.
+- Efter test 3: dambana 3 × 2 km. Simulerat: perfekt ≈ 3:20 inkl. skytte med ~40 % energi kvar, bra ≈ 3:30 med ~35 %, slarvig ≈ 4:10 med ~20 %, glid i utför ~50 %.
 - Nästa: Majas test av energi/vind → steg 2 (riktig bana från Le Grand-Bornand) → steg 3 (multiplayer med placering, lobby-nedräkning, prisutdelning).
 - Testhake: `window.__game.step(dt)` kör spelet utan rendering (används för automatiska lopp i headless Chrome).

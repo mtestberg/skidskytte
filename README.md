@@ -1,6 +1,6 @@
 # Skidskytte – sprint i mobilen
 
-Ett skidskyttespel för mobilens webbläsare (landskapsläge). Sprint: 3 × 2,5 km med liggande och stående skytte, energi och vind.
+Ett skidskyttespel för mobilens webbläsare (landskapsläge). Sprint (dambanan): 3 × 2 km med liggande och stående skytte, energi och vind.
 
 **Spela:** öppna `index.html` via en webbserver, eller GitHub Pages när repot är publicerat.
 

@@ -2,7 +2,7 @@
 // Prototyp: procedurell terräng. I steg 2 ersätts terrainHeight/rawPath
 // med inbakad höjdkarta och spår från Le Grand-Bornand.
 
-export const LAP_LEN = 2500;      // sprint 7,5 km = 3 × 2,5 km
+export const LAP_LEN = 2000;      // damsprint/-stafettsträcka 6 km = 3 × 2 km
 export const LAPS = 3;
 export const PENALTY_LEN = 150;
 export const TIME_SCALE = 5;      // åkningen går 5× fortare än verklig fart (lopp ≈ 4–5 min)
@@ -10,9 +10,9 @@ export const PENALTY_RADIUS = PENALTY_LEN / (2 * Math.PI);
 
 export function terrainHeight(x, z) {
   return (
-    13 * Math.sin(x / 170 + 0.7) * Math.cos(z / 210) +
-    8 * Math.sin((x + z) / 105) +
-    2.5 * Math.cos((x - 2 * z) / 60) +
+    10 * Math.sin(x / 170 + 0.7) * Math.cos(z / 210) +
+    6 * Math.sin((x + z) / 105) +
+    2 * Math.cos((x - 2 * z) / 60) +
     1.5 * Math.sin(x / 23) * Math.sin(z / 29)
   );
 }
