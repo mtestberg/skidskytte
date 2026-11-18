@@ -7,7 +7,7 @@
 // LocalDB:    samma gränssnitt mellan flikar på samma enhet (BroadcastChannel).
 //             Används när Firebase inte är konfigurerat, och i automatiska tester.
 
-import { FIREBASE_CONFIG } from './config.js?v=202611181940';
+import { FIREBASE_CONFIG } from './config.js?v=202611182008';
 
 // Platshållare som byts mot serverns klocka (Firebase serverTimestamp)
 export const SERVER_TIME = '__server_time__';
@@ -109,8 +109,7 @@ class LocalDB {
     this.mine = []; // sökvägar att ta bort när fliken stängs
     try {
       const saved = JSON.parse(localStorage.getItem('skidskytte.localdb') || '{}');
-      this.tree.leaderboard = saved.leaderboard || {};
-      this.tree.ghosts = saved.ghosts || {};
+      for (const [k, v] of Object.entries(saved)) if (k === 'ghosts' || k.startsWith('leaderboard')) this.tree[k] = v || {};
     } catch { /* ignorera */ }
     try {
       this.ch = new BroadcastChannel('skidskytte-local');
@@ -155,7 +154,8 @@ class LocalDB {
 
   persist() {
     try {
-      localStorage.setItem('skidskytte.localdb', JSON.stringify({ leaderboard: this.tree.leaderboard, ghosts: this.tree.ghosts }));
+      const keep = Object.fromEntries(Object.entries(this.tree).filter(([k]) => k === 'ghosts' || k.startsWith('leaderboard')));
+      localStorage.setItem('skidskytte.localdb', JSON.stringify(keep));
     } catch { /* ignorera */ }
   }
 

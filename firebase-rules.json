@@ -4,7 +4,9 @@
     ".write": false,
     "rooms": {
       ".read": true,
-      ".indexOn": ["touched"],
+      ".indexOn": [
+        "touched"
+      ],
       "$code": {
         ".read": true,
         ".write": "$code.matches(/^[A-Z]{4}$/)"
@@ -12,7 +14,9 @@
     },
     "leaderboard": {
       ".read": true,
-      ".indexOn": ["time"],
+      ".indexOn": [
+        "time"
+      ],
       "$id": {
         ".write": "!data.exists()",
         ".validate": "newData.hasChildren(['name', 'time', 'misses', 'ts']) && newData.child('name').isString() && newData.child('name').val().length <= 16 && newData.child('time').isNumber() && newData.child('time').val() > 60 && newData.child('misses').isNumber()"
@@ -23,6 +27,26 @@
       "$id": {
         ".write": "!data.exists()",
         ".validate": "newData.isString() && newData.val().length < 20000"
+      }
+    },
+    "leaderboard_distans": {
+      ".read": true,
+      ".indexOn": [
+        "time"
+      ],
+      "$id": {
+        ".write": "!data.exists()",
+        ".validate": "newData.hasChildren(['name', 'time', 'misses', 'ts']) && newData.child('name').isString() && newData.child('name').val().length <= 16 && newData.child('time').isNumber() && newData.child('time').val() > 60 && newData.child('misses').isNumber()"
+      }
+    },
+    "leaderboard_masstart": {
+      ".read": true,
+      ".indexOn": [
+        "time"
+      ],
+      "$id": {
+        ".write": "!data.exists()",
+        ".validate": "newData.hasChildren(['name', 'time', 'misses', 'ts']) && newData.child('name').isString() && newData.child('name').val().length <= 16 && newData.child('time').isNumber() && newData.child('time').val() > 60 && newData.child('misses').isNumber()"
       }
     }
   }

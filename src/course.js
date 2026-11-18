@@ -1,4 +1,4 @@
-import { makeTransit } from './paths.js?v=202611181940';
+import { makeTransit } from './paths.js?v=202611182008';
 // Bana: en sluten slinga på exakt LAP_LEN meter med höjdprofil.
 // Två källor:
 //  - inbakad bana (data/course.json från tools/build-course.mjs): riktigt spår + höjdkarta

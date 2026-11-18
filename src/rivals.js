@@ -2,8 +2,8 @@
 // Live-positionen kommer 4 ggr/s (p = total sträcka, st = läge, pd = sträcka i läget),
 // så här jämnas rörelsen ut: farten skattas och positionen förutsägs mellan uppdateringarna.
 import * as THREE from 'three';
-import { LAP_LEN, TIME_SCALE, FINISH_LEN } from './course.js?v=202611181940';
-import { buildSkier, animateSkier } from './world.js?v=202611181940';
+import { LAP_LEN, TIME_SCALE, FINISH_LEN } from './course.js?v=202611182008';
+import { buildSkier, animateSkier } from './world.js?v=202611182008';
 
 function nameTag(name, color) {
   const c = document.createElement('canvas');
@@ -99,7 +99,8 @@ export class Rivals {
       x = course.rangePos[0] + t0x * off; z = course.rangePos[1] + t0z * off; y = course.stadiumElev;
       [tx, tz] = course.normal;
       const lap = Math.round((c.progress || 0) / LAP_LEN);
-      mode = lap <= 1 ? 'prone' : 'stand';
+      const kind = (this.shoots || ['prone', 'standing'])[lap - 1] || 'standing';
+      mode = kind === 'prone' ? 'prone' : 'stand';
     } else if (r.st === 'f' || c.done) {
       const [fx, fy, fz] = course.finishPoint(FINISH_LEN);
       const [dx, dz] = course.finishDir;

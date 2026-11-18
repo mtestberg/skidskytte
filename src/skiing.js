@@ -129,7 +129,7 @@ export class Skiing {
 
   // Mycket energi kvar → dyrare; lite kvar → billigare (man blir aldrig helt slut)
   spend(x) {
-    x *= 0.4 + 0.45 * this.energyFrac;
+    x *= (0.4 + 0.45 * this.energyFrac) * (this.energyScale ?? 1); // längre grenar: energin räcker längre
     this.energy = clamp(this.energy - x, 0, ENERGY_MAX);
   }
 
