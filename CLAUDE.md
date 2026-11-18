@@ -129,6 +129,9 @@ Claudes tekniska val
 - **Höjdkurva** för varvet under minikartan, med en prick för var man är.
 - **Vind i skyttet**: sidvind som varierar under loppet och flyttar träffen åt det håll det blåser. Flagga visar vinden (i kikarvyn och på vallen); ingen siffra, man läser flaggan som i verkligheten.
 
+### Feedback efter test 4 (2026-11-18)
+- **Stående skytte svårare** (i verkligheten ofta svårare än liggande): mer svaj, mer drift, att hålla andan hjälper mindre. Simulerad träffsäkerhet med perfekt sikte och ungefärlig vindläsning: stående ca 95 % vid puls 110, ca 75 % vid 125, ca 50 % vid 140, ca 40 % vid 160. Liggande ca 85–100 % i samma spann; den lilla träffytan gör liggande svårare för en människa än simuleringen visar.
+
 Till steg 3 (multiplayer)
 - **Placering** visas som "placering / antal deltagare" i HUD:en, så man slipper tolka prickarna.
 - **Lobby**: när alla i rummet tryckt "Redo" startar en **nedräkning på 10 s**, sedan startar loppet.

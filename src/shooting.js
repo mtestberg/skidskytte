@@ -40,9 +40,9 @@ export class Shooting {
 
   swayAmp() {
     const p = Math.max(0, this.pulse - 65);
-    let a = this.kind === 'prone' ? 7 + p * 0.33 : 14 + p * 0.55;
+    let a = this.kind === 'prone' ? 7 + p * 0.33 : 36 + p * 0.85;
     a *= 1 + this.debt * 0.5;
-    if (this.holding) a *= this.kind === 'prone' ? 0.5 : 0.35;
+    if (this.holding) a *= this.kind === 'prone' ? 0.5 : 0.68;
     return a;
   }
 
@@ -126,7 +126,7 @@ export class Shooting {
     }
 
     // Långsam drift (mer stående, mindre när man håller andan)
-    const dk = (this.kind === 'prone' ? 1.5 : 5) * (this.holding ? 0.3 : 1);
+    const dk = (this.kind === 'prone' ? 1.5 : 9) * (this.holding ? 0.45 : 1);
     const d = this.drift;
     d.vx += (Math.random() - 0.5) * dk * dt * 20 - d.x * dt * 1.5;
     d.vy += (Math.random() - 0.5) * dk * dt * 20 - d.y * dt * 1.5;
