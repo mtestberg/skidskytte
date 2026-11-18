@@ -184,5 +184,6 @@ Till steg 3 (multiplayer)
 - **Sorlet sänkt (2026-11-18):** bakgrundssorlet (`crowd.mp3`) sänkt till ca 40 % av tidigare nivå (`level * 0.17`).
 - **Stavtag och pendel hörs bättre (2026-11-18):** stavisättningen är ett skarpt "tjack" + duns (topp ca 0,39 mot skottets 0,77), skäret ett "schhhk" som sjunker i ton, och pendelns taktslag ett träkloss-klick (topp ca 0,24) – mycket mellan-/diskantinnehåll så att det hörs i mobilhögtalare. Taktslaget hörs även på straffrundan.
 - **Mjuka övergångar på stadion (2026-11-18):** inget hopp längre. Åkaren glider in från spåret till skjutmattan, åker en kurvad väg (kubisk Bézier, `src/paths.js`) från vallen över banan till straffrundan, och från straffrundan (eller vallen vid fullt) ut på banan igen vid `JOIN_S` = 50 m. Straffrundan börjar och slutar i punkten närmast banan i banans riktning. Vägarna är pistade och har öppningar i staket, banderoller och publik (`course.inLane`). Nytt läge `transit` i `main.js` (räknas som vallen i live/spöken).
+- **Konor runt straffrundan (2026-11-18):** röda avlånga konor med vitt reflexband och fot längs straffrundans inner- och ytterkant (instansierade, `buildTrack` i `scenery.js`), med öppning där man åker in och ut.
 - Nästa: Majas test → fler finputs.
 - Testhake: `window.__game.step(dt)` kör spelet utan rendering (används för automatiska lopp i headless Chrome).

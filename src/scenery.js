@@ -2,7 +2,7 @@
 // pistat spår (manchesterränder + klassiska spår), markeringspinnar, staket,
 // publik och banderoller vid stadion. Allt är instansierat eller små canvas-texturer.
 import * as THREE from 'three';
-import { FINISH_LEN } from './course.js';
+import { FINISH_LEN, PENALTY_LEN } from './course.js';
 
 // ---------- Pistat spår ----------
 function corduroyTexture() {
@@ -80,6 +80,31 @@ export function buildTrack(scene, course) {
     pp.push({ x, y: y + 0.03, z, tx, tz, s: d });
   }
   scene.add(ribbon(pp, 3.4, tex, 9));
+  // Röda avlånga konor runt straffrundan (innerkant och ytterkant), med vitt reflexband
+  {
+    const coneGeo = new THREE.ConeGeometry(0.13, 0.75, 8).translate(0, 0.375, 0);
+    const baseGeo = new THREE.BoxGeometry(0.34, 0.04, 0.34).translate(0, 0.02, 0);
+    const bandGeo = new THREE.CylinderGeometry(0.068, 0.085, 0.12, 8).translate(0, 0.42, 0);
+    const MAXC = 220;
+    const cones = new THREE.InstancedMesh(coneGeo, new THREE.MeshStandardMaterial({ color: 0xe0281e, roughness: 0.45 }), MAXC);
+    const bases = new THREE.InstancedMesh(baseGeo, new THREE.MeshStandardMaterial({ color: 0x3a1210, roughness: 0.7 }), MAXC);
+    const bands = new THREE.InstancedMesh(bandGeo, new THREE.MeshStandardMaterial({ color: 0xf4f4f4, roughness: 0.3, emissive: 0x222222 }), MAXC);
+    const cm = new THREE.Matrix4();
+    let c = 0;
+    for (const [off, step] of [[-2.25, 4], [2.25, 3.2]]) { // innerkant glesare, ytterkant tätare
+      for (let d = 0; d < PENALTY_LEN && c < MAXC; d += step) {
+        const [x, y, z] = course.penaltyPoint(d);
+        const [tx, tz] = course.penaltyTangent(d);
+        const px = x - tz * off, pz = z + tx * off;
+        // lämna öppning där man åker in på och ut från straffrundan
+        if (course.inLane(px, pz, 2.0)) continue;
+        cm.makeTranslation(px, y, pz);
+        cones.setMatrixAt(c, cm); bases.setMatrixAt(c, cm); bands.setMatrixAt(c, cm);
+        c++;
+      }
+    }
+    for (const im of [cones, bases, bands]) { im.count = c; im.castShadow = im === cones; scene.add(im); }
+  }
   // Upploppsrakan
   const fp = [];
   for (let d = -6; d <= FINISH_LEN + 25; d += 2) {
