@@ -1,6 +1,6 @@
 // Animerad prisutdelning: pall vid stadion, topp tre kliver upp och firar, konfetti.
 import * as THREE from 'three';
-import { buildSkier, animateSkier } from './world.js?v=202611182034';
+import { buildSkier, animateSkier } from './world.js?v=202611182050';
 
 const HEIGHTS = [1.1, 0.75, 0.5];   // 1:a, 2:a, 3:e
 const X = [0, -1.95, 1.95];          // 1:an i mitten
@@ -14,7 +14,8 @@ export class Ceremony {
     const [tx, tz] = course.tangentAt(0);
     this.y = course.stadiumElev;
     // Pallen står på stadion, vänd mot kameran (längs normalen)
-    this.origin = new THREE.Vector3(sx - nx * 34 + tx * 12, this.y, sz - nz * 34 + tz * 12);
+    // Pallen står på stadion framför läktaren (publiken i bakgrunden)
+    this.origin = new THREE.Vector3(sx + nx * 1 - tx * 6, this.y, sz + nz * 1 - tz * 6);
     this.side = new THREE.Vector3(tx, 0, tz);
     this.front = new THREE.Vector3(nx, 0, nz);
     this.group = new THREE.Group();

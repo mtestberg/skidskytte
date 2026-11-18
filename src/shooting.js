@@ -2,7 +2,7 @@
 // Mått i millimeter (verkliga biathlontavlor):
 //   svart platta Ø115 mm. Liggande träffyta Ø45 mm, stående Ø115 mm.
 
-import { WIND_MM_PER_MS } from './wind.js?v=202611182034';
+import { WIND_MM_PER_MS } from './wind.js?v=202611182050';
 
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 

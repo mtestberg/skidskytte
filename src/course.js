@@ -1,4 +1,4 @@
-import { makeTransit } from './paths.js?v=202611182034';
+import { makeTransit } from './paths.js?v=202611182050';
 // Bana: en sluten slinga på exakt LAP_LEN meter med höjdprofil.
 // Två källor:
 //  - inbakad bana (data/course.json från tools/build-course.mjs): riktigt spår + höjdkarta
@@ -8,7 +8,8 @@ export const LAP_LEN = 2000;      // damsprint/-stafettsträcka 6 km = 3 × 2 km
 export const LAPS = 3;
 export const PENALTY_LEN = 150;
 export const TIME_SCALE = 5;      // åkningen går 5× fortare än verklig fart (lopp ≈ 4–5 min)
-export const JOIN_S = 50; // var man kommer ut på banan igen efter vallen/straffrundan
+export const JOIN_S = 130; // var man kommer ut på banan igen efter vallen/straffrundan (förbi straffrundan)
+export const PEN_U = 75;   // straffrundans mitt längs stadion (vid sidan av läktaren, inte framför vallen)
 export const PENALTY_RADIUS = PENALTY_LEN / (2 * Math.PI);
 export const FINISH_LEN = 200;   // upploppsraka efter sista varvet
 export const SHORT_LAP = 1500;   // kortare varv (masstart) via en genväg i slingan
@@ -133,10 +134,15 @@ export class Course {
     this.stadium = [this.xs[0], this.zs[0]];
     this.rangePos = [this.stadium[0] + this.normal[0] * 22, this.stadium[1] + this.normal[1] * 22];
     this.penaltyCenter = [
-      this.stadium[0] - this.normal[0] * (PENALTY_RADIUS + 14) + tx * 30,
-      this.stadium[1] - this.normal[1] * (PENALTY_RADIUS + 14) + tz * 30,
+      this.stadium[0] - this.normal[0] * (PENALTY_RADIUS + 14) + tx * PEN_U,
+      this.stadium[1] - this.normal[1] * (PENALTY_RADIUS + 14) + tz * PEN_U,
     ];
     this.penaltyA0 = Math.atan2(this.normal[1], this.normal[0]);
+    this.startDir = [tx, tz];
+    // Läktaren står på andra sidan spåret mitt emot skjutvallen och blickar ut över den:
+    // läktare – spår – mattor – tavlor (som på riktiga arenor). Straffrundan ligger vid
+    // sidan av läktaren, så den skymmer inte vallen.
+    this.grandstandZone = this.pickGrandstand();
 
     // Grova punkter för avståndsberäkning (terräng, träd)
     this.coarse = [];
@@ -213,6 +219,7 @@ export class Course {
       for (let d = 40; d <= path.len - 40 && ok; d += 4) {
         const q = path.at(d);
         if (Math.hypot(q.x - this.stadium[0], q.z - this.stadium[1]) < 90) ok = false;
+        if (this.inStadiumZone(q.x, q.z, 6)) ok = false;
         for (let i = 0; i < n && ok; i += 6) {
           if (Math.abs(i - a) < 70 || Math.abs(i - b) < 70) continue;
           if ((this.xs[i] - q.x) ** 2 + (this.zs[i] - q.z) ** 2 < 12 * 12) ok = false;
@@ -371,6 +378,55 @@ export class Course {
       rangeOut: makeTransit(this.rangePos, t, join, joinT, sy, joinY),
       penaltyOut: makeTransit(pen0, penT, join, joinT, sy, joinY),
     };
+  }
+
+  // Stadionkoordinater: u = längs spåret vid stadion (startriktningen), v = åt skjutvallen (+normal)
+  toLocal(x, z) {
+    const [sx, sz] = this.stadium, [tx, tz] = this.startDir, [nx, nz] = this.normal;
+    return [(x - sx) * tx + (z - sz) * tz, (x - sx) * nx + (z - sz) * nz];
+  }
+  fromLocal(u, v) {
+    const [sx, sz] = this.stadium, [tx, tz] = this.startDir, [nx, nz] = this.normal;
+    return [sx + tx * u + nx * v, sz + tz * u + nz * v];
+  }
+  pickGrandstand() {
+    const W = 70, D = 9, vFront = -9;
+    const clear = (z) => {
+      for (let i = 0; i < this.n; i += 3) {
+        const [u, v] = this.toLocal(this.xs[i], this.zs[i]);
+        if (u > z.u0 - 4 && u < z.u1 + 4 && v > z.v0 - 4 && v < z.v1 + 3) return false;
+      }
+      return z.u1 < PEN_U - PENALTY_RADIUS - 6;
+    };
+    let first = null;
+    for (const uc of [-5, -18, 8, -32]) {
+      const z = { uc, vFront, width: W, side: -1, u0: uc - W / 2, u1: uc + W / 2, v0: vFront - D, v1: vFront + 1 };
+      first = first || z;
+      if (clear(z)) return z;
+    }
+    return first;
+  }
+
+  // Ytor på stadion som inget spår (genväg) får gå igenom: läktare, skjutvall, straffrunda, upplopp
+  inStadiumZone(x, z, margin = 0) {
+    const [u, v] = this.toLocal(x, z), m = margin, R = PENALTY_RADIUS;
+    const g = this.grandstandZone;
+    if (u > g.u0 - m && u < g.u1 + m && v > g.v0 - m && v < g.v1 + m) return 'läktare';
+    if (u > -26 - m && u < 26 + m && v > 14 - m && v < 64 + m) return 'skjutvall';
+    if (Math.hypot(u - PEN_U, v + R + 14) < R + 5 + m) return 'straffrunda';
+    if (u > -5 - m && u < FINISH_LEN + 15 + m && Math.abs(v) < 10 + m) return 'upplopp';
+    return null;
+  }
+  // Avstånd till närmaste åkbara spår (slingan och genvägarna, inte upploppet/övergångarna)
+  trackDist(x, z) {
+    if (!this.trackPts) {
+      this.trackPts = [];
+      for (let i = 0; i < this.n; i += 3) this.trackPts.push([this.xs[i], this.zs[i]]);
+      for (const sc of this.shortcuts.values()) for (let d = 0; d <= sc.len; d += 3) { const q = sc.at(d); this.trackPts.push([q.x, q.z]); }
+    }
+    let best = Infinity;
+    for (const [px, pz] of this.trackPts) { const d = (px - x) ** 2 + (pz - z) ** 2; if (d < best) best = d; }
+    return Math.sqrt(best);
   }
 
   // Ligger (x, z) inom r meter från en övergång eller straffrundan? (öppningar i staketet)

@@ -1,19 +1,19 @@
 import * as THREE from 'three';
-import { Course, loadCourseData, LAP_LEN, LAPS, PENALTY_LEN, TIME_SCALE, FINISH_LEN, JOIN_S } from './course.js?v=202611182034';
-import { Skiing } from './skiing.js?v=202611182034';
-import { Shooting, AIM_LIMIT } from './shooting.js?v=202611182034';
-import { buildWorld, buildSkier, animateSkier, updateFlags, SUN_DIR } from './world.js?v=202611182034';
-import { createSnow } from './scenery.js?v=202611182034';
-import { drawPendulum, Minimap, Profile, drawFlag, fmtTime } from './hud.js?v=202611182034';
-import { Wind } from './wind.js?v=202611182034';
-import { connect } from './net.js?v=202611182034';
-import { Room, makeCode, makeId, standings, GhostRecorder, decodeGhost, ghostAt, COLOR_CSS } from './mp.js?v=202611182034';
-import { Ceremony } from './ceremony.js?v=202611182034';
-import { FORMATS, FORMAT_IDS, getFormat, boardPath, storeKey, kmText } from './formats.js?v=202611182034';
-import { COURSES, COURSE_IDS, getCourse } from './courses.js?v=202611182034';
-import { Rivals } from './rivals.js?v=202611182034';
+import { Course, loadCourseData, LAP_LEN, LAPS, PENALTY_LEN, TIME_SCALE, FINISH_LEN, JOIN_S } from './course.js?v=202611182050';
+import { Skiing } from './skiing.js?v=202611182050';
+import { Shooting, AIM_LIMIT } from './shooting.js?v=202611182050';
+import { buildWorld, buildSkier, animateSkier, updateFlags, SUN_DIR } from './world.js?v=202611182050';
+import { createSnow } from './scenery.js?v=202611182050';
+import { drawPendulum, Minimap, Profile, drawFlag, fmtTime } from './hud.js?v=202611182050';
+import { Wind } from './wind.js?v=202611182050';
+import { connect } from './net.js?v=202611182050';
+import { Room, makeCode, makeId, standings, GhostRecorder, decodeGhost, ghostAt, COLOR_CSS } from './mp.js?v=202611182050';
+import { Ceremony } from './ceremony.js?v=202611182050';
+import { FORMATS, FORMAT_IDS, getFormat, boardPath, storeKey, kmText } from './formats.js?v=202611182050';
+import { COURSES, COURSE_IDS, getCourse } from './courses.js?v=202611182050';
+import { Rivals } from './rivals.js?v=202611182050';
 import qrcode from '../vendor/qrcode.js';
-import * as sfx from './audio.js?v=202611182034';
+import * as sfx from './audio.js?v=202611182050';
 
 const $ = (id) => document.getElementById(id);
 window.addEventListener('error', (e) => { const el = $('err'); el.textContent = 'Fel: ' + e.message; el.classList.remove('hidden'); });
@@ -143,7 +143,7 @@ let camInit = false;
 function newRace(countSeconds = 3, seed = null) {
   ski.reset();
   ski.assistAllowed = true;
-  wind = new Wind(seed == null ? Math.random : seeded(seed));
+  wind = new Wind(seed == null ? Math.random : seeded(seed), course.env.wind);
   $('ski-ui').classList.remove('sprint');
   race = { lap: 1, s: 0, time: 0, penaltyTime: 0, penaltyLeft: 0, penaltyDist: 0, onStraight: false, finishDist: 0, misses: [], splits: [], shootTime: [], shootStart: 0 };
   rivals.shoots = fmt.shoots;
@@ -1062,6 +1062,7 @@ function setFormat(id, save = true) {
   if (save) store.set('format', fmt.id);
   const t = course.lapView(course.lapLens[fmt.id]);
   if (t !== track || !minimap || minimap.course !== track) { track = t; minimap = new Minimap($('minimap'), track); profile = new Profile($('profile'), track); }
+  world.setBarriers(track.n); // konor över den väg man inte ska ta
   document.querySelectorAll('#fmt-row .fmt-btn').forEach((b) => b.classList.toggle('on', b.dataset.f === fmt.id));
   document.querySelectorAll('#crs-row .fmt-btn').forEach((b) => b.classList.toggle('on', b.dataset.c === courseCfg.id));
   $('fmt-desc').textContent = `${kmText(fmt, track.n)} · ${fmt.desc}`;
@@ -1135,7 +1136,7 @@ function startSeries() {
   shooting = new Shooting(practice.kind);
   ski.pulse = RP_PULSES[practice.pulseIdx][0];
   race.time = 0;
-  wind = new Wind(Math.random);
+  wind = new Wind(Math.random, course.env.wind);
   startShooting();
   rpStats();
 }
@@ -1222,9 +1223,9 @@ requestAnimationFrame(frame);
 
 // För automatiska tester
 window.__game = {
-  get state() { return state; }, get race() { return race; }, ski, course, rivals, get shooting() { return shooting; },
+  get state() { return state; }, get race() { return race; }, ski, get course() { return course; }, rivals, get shooting() { return shooting; },
   get room() { return room; }, get db() { return db; }, get ghosts() { return ghosts; }, me,
-  ceremony, camera, renderer, useLocalDb: async () => { const m = await import('./net.js?v=202611182034'); db = await m.connectLocal(); },
+  get ceremony() { return ceremony; }, camera, renderer, get world() { return world; }, useLocalDb: async () => { const m = await import('./net.js?v=202611182050'); db = await m.connectLocal(); },
   step: (dt) => update(dt), start: newRace,
   debugCeremony: (list) => { state = 'ceremony'; ceremony.start(list); showUI(); },
 };

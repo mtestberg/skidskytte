@@ -165,7 +165,7 @@ export function drawFlag(ctx, W, H, wind, t) {
   ctx.lineTo(px, top);
   ctx.stroke();
 
-  const strength = Math.min(1, Math.abs(wind) / 4.5);
+  const strength = Math.min(1, Math.abs(wind) / 6); // full styrka först vid 6 m/s (Östersund)
   const dir = wind >= 0 ? 1 : -1;
   const a = 0.12 + strength * 1.35;              // 0 = rakt ned, π/2 = vågrätt
   const len = W * 0.44, hgt = H * 0.2;

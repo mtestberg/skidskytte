@@ -41,6 +41,8 @@ export const COURSES = {
       // boreal skog (tall och gran), stadsbebyggelse i kanten, låga fjäll långt bort
       trees: 1.45, houses: 18, bare: 0.02, mountains: 0.4, greens: [0x1f3826, 0x274230, 0x2f4a2e, 0x1b3324, 0x2a3f2a],
       houseStyle: 'swedish', flags: { SE: 7, NO: 2, FI: 1, DE: 1 },
+      // alltid ganska blåsigt i Östersund: 2,5–4 m/s grundvind och kraftigare byar
+      wind: { min: 2.5, max: 4, amp: 1.3, cap: 7 },
     },
   },
 };

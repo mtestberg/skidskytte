@@ -2,7 +2,7 @@
 // pistat spår (manchesterränder + klassiska spår), markeringspinnar, staket,
 // publik och banderoller vid stadion. Allt är instansierat eller små canvas-texturer.
 import * as THREE from 'three';
-import { FINISH_LEN, PENALTY_LEN } from './course.js?v=202611182034';
+import { FINISH_LEN, PENALTY_LEN } from './course.js?v=202611182050';
 
 // ---------- Pistat spår ----------
 // Spårbädden är lite gråblå och tydligt randig (manchester), med en upphöjd
@@ -167,18 +167,59 @@ export function buildTrack(scene, course) {
     scene.add(ribbon(sp, 4.6, tex, 9, 0.8));
   }
 
+  // Avspärrningar vid spårgafflarna: konor tvärs över den väg man inte ska ta.
+  // Kör man ett varv med genväg spärras slingan av efter avfarten och före påfarten;
+  // annars spärras genvägen av i båda ändar. setBarriers(varvlängd) växlar.
+  const barrierSets = [];
+  {
+    const coneGeo = new THREE.ConeGeometry(0.13, 0.75, 8).translate(0, 0.375, 0);
+    const coneMat = new THREE.MeshStandardMaterial({ color: 0xe0281e, roughness: 0.45 });
+    const bandGeo = new THREE.CylinderGeometry(0.068, 0.085, 0.12, 8).translate(0, 0.42, 0);
+    const bandMat = new THREE.MeshStandardMaterial({ color: 0xf4f4f4, roughness: 0.3, emissive: 0x222222 });
+    const line = (pts) => { // pts: [[x, y, z, tx, tz, halfWidth]]
+      const list = [];
+      for (const [x, y, z, tx, tz, hw] of pts) for (let o = -hw; o <= hw + 0.01; o += 0.75) list.push([x - tz * o, y, z + tx * o]);
+      const g = new THREE.Group();
+      const c = new THREE.InstancedMesh(coneGeo, coneMat, list.length), b = new THREE.InstancedMesh(bandGeo, bandMat, list.length);
+      const mm = new THREE.Matrix4();
+      list.forEach(([x, y, z], i) => { mm.makeTranslation(x, y, z); c.setMatrixAt(i, mm); b.setMatrixAt(i, mm); });
+      c.castShadow = true;
+      g.add(c, b);
+      g.visible = false;
+      scene.add(g);
+      return g;
+    };
+    const onLoop = (s) => { const [x, y, z] = course.pointAt(s), [tx, tz] = course.tangentAt(s); return [x, y, z, tx, tz, 3.0]; };
+    const onSc = (sc, d) => { const q = sc.at(d); return [q.x, q.y, q.z, q.tx, q.tz, 2.6]; };
+    for (const [len, sc] of course.shortcuts) {
+      barrierSets.push({
+        len,
+        loop: line([onLoop(sc.a + 20), onLoop(sc.b - 20)]),          // när genvägen används
+        short: line([onSc(sc, 14), onSc(sc, sc.len - 14)]),           // när hela slingan åks
+      });
+    }
+  }
+  const setBarriers = (lapLen) => {
+    for (const b of barrierSets) { b.loop.visible = b.len === lapLen; b.short.visible = b.len !== lapLen; }
+  };
+  setBarriers(course.n);
+
   // Markeringspinnar längs spåret (röda till vänster, blå till höger) var 25:e meter
   const poleGeo = new THREE.CylinderGeometry(0.025, 0.03, 1.3, 5).translate(0, 0.65, 0);
   const red = new THREE.InstancedMesh(poleGeo, new THREE.MeshStandardMaterial({ color: 0xd8312f, roughness: 0.5 }), 200);
   const blue = new THREE.InstancedMesh(poleGeo, new THREE.MeshStandardMaterial({ color: 0x1f5fbf, roughness: 0.5 }), 200);
   const m = new THREE.Matrix4();
+  const scPts = [];
+  for (const sc of course.shortcuts.values()) for (let d = 0; d <= sc.len; d += 2) { const q = sc.at(d); scPts.push([q.x, q.z]); }
+  const nearShortcut = (x, z) => scPts.some(([px, pz]) => (px - x) ** 2 + (pz - z) ** 2 < 3.2 * 3.2);
   let i = 0;
   for (let s = 0; s < course.n && i < 200; s += 25, i++) {
     const [x, y, z] = course.pointAt(s);
     const [tx, tz] = course.tangentAt(s);
-    // ingen pinne mitt i en korsande övergång
-    m.makeTranslation(x - tz * 3.3, course.inLane(x - tz * 3.3, z + tx * 3.3, 2) ? -50 : y, z + tx * 3.3); red.setMatrixAt(i, m);
-    m.makeTranslation(x + tz * 3.3, course.inLane(x + tz * 3.3, z - tx * 3.3, 2) ? -50 : y, z - tx * 3.3); blue.setMatrixAt(i, m);
+    // ingen pinne mitt i en korsande övergång eller på en genväg
+    const hide = (px, pz) => course.inLane(px, pz, 2) || nearShortcut(px, pz);
+    m.makeTranslation(x - tz * 3.3, hide(x - tz * 3.3, z + tx * 3.3) ? -50 : y, z + tx * 3.3); red.setMatrixAt(i, m);
+    m.makeTranslation(x + tz * 3.3, hide(x + tz * 3.3, z - tx * 3.3) ? -50 : y, z - tx * 3.3); blue.setMatrixAt(i, m);
   }
   for (const sc of course.shortcuts.values()) {
     for (let d = 30; d < sc.len - 30 && i < 200; d += 25, i++) {
@@ -189,6 +230,7 @@ export function buildTrack(scene, course) {
   }
   red.count = blue.count = i;
   for (const im of [red, blue]) { im.castShadow = true; scene.add(im); }
+  return setBarriers;
 }
 
 // ---------- Stadion: staket, banderoller, publik ----------
@@ -217,6 +259,8 @@ export function buildStadiumDetails(scene, course) {
   ].map((t) => new THREE.MeshStandardMaterial({ map: t, roughness: 0.7, side: THREE.DoubleSide }));
   const panelGeo = new THREE.PlaneGeometry(4.6, 0.6);
   const inst = panels.map((mat) => new THREE.InstancedMesh(panelGeo, mat, 90));
+  // Står (x, z) på ett spår eller i läktaren/skjutvallen/straffrundan? Då ställs inget dit.
+  const blocked = (x, z, r) => course.trackDist(x, z) < r || ['läktare', 'skjutvall', 'straffrunda'].includes(course.inStadiumZone(x, z, 1));
   const counts = [0, 0, 0];
   const pm = new THREE.Matrix4(), pq = new THREE.Quaternion(), one = new THREE.Vector3(1, 1, 1), pv = new THREE.Vector3();
   // längs upploppsrakan (båda sidor), sedan längs banan runt stadion
@@ -224,10 +268,7 @@ export function buildStadiumDetails(scene, course) {
   for (let d = 35; d <= FINISH_LEN + 10; d += 5) {
     const [x, , z] = course.finishPoint(d);
     const [tx, tz] = course.finishDir;
-    for (const side of [-1, 1]) {
-      if (side === -1 && d < 120) continue; // där ligger banan nära bredvid
-      spots.push([x, z, tx, tz, side, d, 4.6]);
-    }
+    for (const side of [-1, 1]) spots.push([x, z, tx, tz, side, d, 4.6]);
   }
   for (let s = -120; s <= 120; s += 5) {
     if (Math.abs(s) < 8) continue; // öppning vid portalen
@@ -245,6 +286,7 @@ export function buildStadiumDetails(scene, course) {
       if (counts[kind] >= 90) continue;
       const px = x - tz * off * side, pz = z + tx * off * side;
       if (course.inLane(px, pz, 3.4)) continue; // öppning där övergången korsar
+      if (blocked(px, pz, 3.6)) continue;          // aldrig på eller tvärs över ett annat spår
       pq.setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.atan2(x - px, z - pz)); // texten vänd mot spåret
       pv.set(px, y + 0.45, pz);
       pm.compose(pv, pq, one);
@@ -279,9 +321,11 @@ export function buildStadiumDetails(scene, course) {
   const flagCounts = flags.map(() => 0);
   const flagData = [];
   let k = 0;
+  let onStand = false;
   const place = (x, yy, z, facing) => {
     if (k >= MAX) return;
     if (course.inLane(x, z, 2.6)) return; // öppning där övergången korsar
+    if (!onStand && blocked(x, z, 4.0)) return; // aldrig publik på ett spår
     q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), facing + (Math.random() - 0.5) * 0.6);
     const s = 0.9 + Math.random() * 0.2;
     sc.set(s, s, s);
@@ -303,8 +347,6 @@ export function buildStadiumDetails(scene, course) {
     const [x, , z] = course.finishPoint(d);
     const [tx, tz] = course.finishDir;
     for (const side of [-1, 1]) {
-      if (side === 1 && d > 55 && d < 145) continue; // där står läktaren
-      if (side === -1 && d < 120) continue;          // där ligger banan nära bredvid
       if (Math.random() < 0.25) continue;
       const off = 5.4 + Math.random() * 1.8;
       const px = x - tz * off * side, pz = z + tx * off * side;
@@ -324,17 +366,18 @@ export function buildStadiumDetails(scene, course) {
       place(px, course.terrainHeight(px, pz) * 0 + y, pz, Math.atan2(tz * side, -tx * side));
     }
   }
-  // Läktaren längs upploppet: publik på varje trappsteg
+  // Läktaren: publik på varje trappsteg, vänd mot spåret och skjutvallen
   const G = grandstand(scene, course);
+  onStand = true;
+  const [gnx, gnz] = course.normal;
   for (let row = 0; row < G.rows; row++) {
     for (let c = -G.width / 2 + 0.8; c <= G.width / 2 - 0.8; c += 0.95) {
       if (Math.random() < 0.12) continue;
-      const [x, , z] = course.finishPoint(G.center + c);
-      const lat = G.lat + row * G.depth + 0.45;
-      const [nx, nz] = course.normal;
-      place(x + nx * lat, y + (row + 1) * G.rise, z + nz * lat, Math.atan2(-nx, -nz));
+      const [x, z] = course.fromLocal(G.uc + c, G.vFront + (row * G.depth + 0.45) * G.side);
+      place(x, y + (row + 1) * G.rise, z, Math.atan2(-gnx * G.side, -gnz * G.side));
     }
   }
+  onStand = false;
   bodies.count = heads.count = k;
   flags.forEach((im, i) => { im.count = flagCounts[i]; scene.add(im); });
   const fm = new THREE.Matrix4(), fq = new THREE.Quaternion(), fe = new THREE.Euler(), fv = new THREE.Vector3(), f1 = new THREE.Vector3(1, 1, 1);
@@ -389,17 +432,19 @@ function flagTexture(spec) {
 
 // Läktare med trappsteg, säten och tak längs upploppsrakan (på +normal-sidan)
 function grandstand(scene, course) {
-  const G = { center: 100, width: 80, lat: 8.5, rows: 7, rise: 0.75, depth: 1.05 };
+  const Z = course.grandstandZone;
+  const G = { uc: Z.uc, vFront: Z.vFront, width: Z.width, side: Z.side, rows: 7, rise: 0.75, depth: 1.05 };
   const y = course.stadiumElev;
   const [nx, nz] = course.normal;
-  const [fx, fz] = course.finishDir;
-  const yaw = Math.atan2(fx, fz);
+  const [tx, tz] = course.startDir;
   const group = new THREE.Group();
-  const [cx, , cz] = course.finishPoint(G.center);
-  group.position.set(cx + nx * G.lat, y, cz + nz * G.lat);
-  group.rotation.y = yaw + Math.PI / 2;
-  // I gruppen: x = längs upploppet, z = bort från spåret (åt +normal). Kolla tecknet:
-  const sideSign = Math.sign(nx * Math.cos(yaw) - nz * Math.sin(yaw)) || 1;
+  const [cx, cz] = course.fromLocal(G.uc, G.vFront);
+  group.position.set(cx, y, cz);
+  // I gruppen: x längs stadion, z bort från spåret (side·normal), y upp (högerhänt bas)
+  const sd = G.side;
+  group.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(
+    new THREE.Vector3(tx * sd, 0, tz * sd), new THREE.Vector3(0, 1, 0), new THREE.Vector3(nx * sd, 0, nz * sd)));
+  const sideSign = 1;
   const concrete = new THREE.MeshStandardMaterial({ color: 0x9aa3ad, roughness: 0.9 });
   const seat = new THREE.MeshStandardMaterial({ color: 0x1f5fbf, roughness: 0.6 });
   const steel = new THREE.MeshStandardMaterial({ color: 0xd9dee4, roughness: 0.4, metalness: 0.5 });

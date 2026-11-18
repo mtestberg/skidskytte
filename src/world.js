@@ -1,7 +1,7 @@
 // 3D-värld: terräng, himmel, skog, stadion och åkaren.
 import * as THREE from 'three';
-import { smooth } from './course.js?v=202611182034';
-import { buildTrack, buildStadiumDetails, buildPortals } from './scenery.js?v=202611182034';
+import { smooth } from './course.js?v=202611182050';
+import { buildTrack, buildStadiumDetails, buildPortals } from './scenery.js?v=202611182050';
 
 export const SUN_DIR = new THREE.Vector3(-0.5, 0.75, 0.35).normalize();
 
@@ -65,7 +65,10 @@ export function buildWorld(scene, course) {
     h = h * (1 - w) + (e - 0.08) * w;
     // stadionplatå
     const ds = Math.hypot(x - course.stadium[0], z - course.stadium[1]);
-    const ws = smooth(110, 60, ds);
+    // + platt mark under läktaren (bakom straffrundan)
+    const [lu, lv] = course.toLocal(x, z), gz = course.grandstandZone;
+    const gd = Math.hypot(Math.max(gz.u0 - lu, 0, lu - gz.u1), Math.max(gz.v0 - lv, 0, lv - gz.v1));
+    const ws = Math.max(smooth(110, 60, ds), smooth(30, 6, gd));
     h = h * (1 - ws) + course.stadiumElev * ws - 0.08 * ws;
     pos.setY(i, h);
     const n = 0.5 + 0.5 * Math.sin(x * 0.13) * Math.cos(z * 0.11);
@@ -113,7 +116,7 @@ export function buildWorld(scene, course) {
   scene.add(terrain);
 
   // Pistat spår, straffrunda och markeringspinnar
-  buildTrack(scene, course);
+  const setBarriers = buildTrack(scene, course);
 
   // Skog (granar: stam + tre kjolar), instansierad
   const trunkGeo = new THREE.CylinderGeometry(0.18, 0.28, 2.2, 5);
@@ -152,6 +155,7 @@ export function buildWorld(scene, course) {
     const [d] = course.nearest(x, z);
     if (d < 9) continue;
     if (Math.hypot(x - course.stadium[0], z - course.stadium[1]) < 90) continue;
+    if (course.inStadiumZone(x, z, 8)) continue;
     // tätare skog nära spåret ger fartkänsla
     if (d > 60 && Math.random() < 0.55) continue;
     spots.push([x, z]);
@@ -199,7 +203,7 @@ export function buildWorld(scene, course) {
   const flags = buildStadium(scene, course);
   const animateCrowd = buildStadiumDetails(scene, course);
   const setClock = buildPortals(scene, course);
-  return { terrain, flags, animateCrowd, setClock };
+  return { terrain, flags, animateCrowd, setClock, setBarriers };
 }
 
 // Hus: chalet (alper, mörkt trä, brett tak) eller svenska (röd/gul panel, vita knutar).
@@ -316,7 +320,7 @@ function buildStadium(scene, course) {
 
 // Vind i m/s (+ = åt höger sett från skytten)
 export function updateFlags(flags, wind, t) {
-  const strength = Math.min(1, Math.abs(wind) / 4.5);
+  const strength = Math.min(1, Math.abs(wind) / 6); // full styrka först vid 6 m/s (Östersund)
   const dir = wind >= 0 ? 1 : -1;
   const a = 0.12 + strength * 1.35;
   for (const f of flags) {

@@ -15,7 +15,7 @@ export const COLOR_CSS = (c) => '#' + c.toString(16).padStart(6, '0');
 export const START_DELAY_MS = 10000;
 const ROOM_TTL_MS = 12 * 3600 * 1000; // rum som inte använts på 12 h städas bort
 export const STALE_MS = 60000; // frånkopplad längre än så → tas bort ur rummet
-import { SERVER_TIME } from './net.js?v=202611182034';
+import { SERVER_TIME } from './net.js?v=202611182050';
 
 export function makeCode() {
   const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
