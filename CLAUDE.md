@@ -155,8 +155,8 @@ Till steg 3 (multiplayer)
 
 ### Parkerade frågor till Maja
 1. Fungerar multiplayer över nätet på GitHub Pages (två telefoner i samma rum)? Firebase har inte kunnat testas härifrån.
-2. Spåret till steg 2: världscupsbanan i Le Grand-Bornand byggs upp tillfälligt i byn och finns troligen inte i OpenStreetMap. Alternativ: (a) Maja ritar dambanans 2 km-slinga i gpx.studio efter IBU:s bankarta och exporterar GPX (med höjd), (b) Claude ritar en trovärdig 2 km-slinga runt stadion utifrån höjdmodellen (inte den officiella banan).
-3. Höjdmodell för terrängen runt spåret: Copernicus GLO-30 via OpenTopography (gratis konto) eller IGN RGE ALTI. Behövs för riktig terräng; utan den används GPX-höjder för spåret och påhittad terräng runt omkring.
+2. ~~Spåret~~ **Besvarat 2026-11-18:** Claude ritar en egen trovärdig 2 km-slinga runt stadion utifrån terrängen (`tools/draw-loop.mjs`, klart och testat med syntetisk höjdmodell).
+3. Höjdmodell: Maja laddar ner Copernicus GLO-30-rutan N45 E006 (fri, utan konto, länk i `data/README.md`) och bifogar den. Väntar på filen.
 
 - Nästa: svar på de parkerade frågorna → steg 2 (riktig bana) → steg 4 (finputs).
 - Testhake: `window.__game.step(dt)` kör spelet utan rendering (används för automatiska lopp i headless Chrome).
