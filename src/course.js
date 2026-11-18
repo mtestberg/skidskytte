@@ -8,6 +8,7 @@ export const LAPS = 3;
 export const PENALTY_LEN = 150;
 export const TIME_SCALE = 5;      // åkningen går 5× fortare än verklig fart (lopp ≈ 4–5 min)
 export const PENALTY_RADIUS = PENALTY_LEN / (2 * Math.PI);
+export const FINISH_LEN = 200;   // upploppsraka efter sista varvet
 
 export function proceduralHeight(x, z) {
   return (
@@ -113,6 +114,12 @@ export class Course {
       const p = this.penaltyPoint(i / 64 * PENALTY_LEN);
       this.coarse.push([p[0], p[2], e0]);
     }
+    // Upploppsrakan: rakt fram från stadion längs startriktningen
+    this.finishDir = [tx, tz];
+    for (let d = 0; d <= FINISH_LEN + 20; d += 4) {
+      const p = this.finishPoint(d);
+      this.coarse.push([p[0], p[2], e0]);
+    }
   }
 
   // Terränghöjd i spelkoordinater
@@ -166,6 +173,12 @@ export class Course {
     const a = (d / PENALTY_LEN) * Math.PI * 2;
     const [cx, cz] = this.penaltyCenter;
     return [cx + Math.cos(a) * PENALTY_RADIUS, this.stadiumElev, cz + Math.sin(a) * PENALTY_RADIUS];
+  }
+
+  finishPoint(d) {
+    const [sx, sz] = this.stadium;
+    const [fx, fz] = this.finishDir;
+    return [sx + fx * d, this.stadiumElev, sz + fz * d];
   }
 
   penaltyTangent(d) {

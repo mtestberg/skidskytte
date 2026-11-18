@@ -1,7 +1,7 @@
 // 3D-värld: terräng, himmel, skog, stadion och åkaren.
 import * as THREE from 'three';
 import { smooth } from './course.js';
-import { buildTrack, buildStadiumDetails } from './scenery.js';
+import { buildTrack, buildStadiumDetails, buildPortals } from './scenery.js';
 
 export const SUN_DIR = new THREE.Vector3(-0.5, 0.75, 0.35).normalize();
 
@@ -136,36 +136,49 @@ export function buildWorld(scene, course) {
     if (d > 60 && Math.random() < 0.55) continue;
     spots.push([x, z]);
   }
-  const count = spots.length;
-  const mTrunk = new THREE.InstancedMesh(trunkGeo, trunkMat, count);
-  const mTiers = tiers.map((g) => new THREE.InstancedMesh(g, needle, count));
+  // Skogen delas i rutor så att bara synliga rutor ritas (även i skuggpasset)
+  const CH = 4;
+  const chunks = Array.from({ length: CH * CH }, () => []);
+  for (const sp of spots) {
+    const cx = Math.min(CH - 1, Math.max(0, Math.floor(((sp[0] / SIZE) + 0.5) * CH)));
+    const cz = Math.min(CH - 1, Math.max(0, Math.floor(((sp[1] / SIZE) + 0.5) * CH)));
+    chunks[cz * CH + cx].push(sp);
+  }
   const greens = [0x1c3a2a, 0x234634, 0x18331f, 0x2b4a36, 0x203d2e].map((c) => new THREE.Color(c));
-  for (let i = 0; i < count; i++) mTiers[0].setColorAt(i, greens[i % greens.length]);
-  const mCap = new THREE.InstancedMesh(capGeo, snowy, count);
   const m = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), p = new THREE.Vector3();
-  spots.forEach(([x, z], i) => {
-    const [d, e] = course.nearest(x, z);
-    let h = course.terrainHeight(x, z);
-    const w = smooth(16, 6, d);
-    h = h * (1 - w) + e * w;
-    const s = 0.7 + Math.random() * 0.8;
-    q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.random() * 6.28);
-    sc.set(s, s * (0.9 + Math.random() * 0.3), s);
-    p.set(x, h - 0.2, z);
-    m.compose(p, q, sc);
-    mTrunk.setMatrixAt(i, m);
-    mTiers.forEach((t) => t.setMatrixAt(i, m));
-    mCap.setMatrixAt(i, m);
-  });
-  for (const im of [mTrunk, ...mTiers, mCap]) {
-    im.castShadow = true;
-    im.receiveShadow = false;
-    scene.add(im);
+  for (const list of chunks) {
+    if (!list.length) continue;
+    const count = list.length;
+    const mTrunk = new THREE.InstancedMesh(trunkGeo, trunkMat, count);
+    const mTier = new THREE.InstancedMesh(tiers[0], needle, count);
+    const mCap = new THREE.InstancedMesh(capGeo, snowy, count);
+    list.forEach(([x, z], i) => {
+      const [d, e] = course.nearest(x, z);
+      let h = course.terrainHeight(x, z);
+      const w = smooth(16, 6, d);
+      h = h * (1 - w) + e * w;
+      const s = 0.7 + Math.random() * 0.8;
+      q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.random() * 6.28);
+      sc.set(s, s * (0.9 + Math.random() * 0.3), s);
+      p.set(x, h - 0.2, z);
+      m.compose(p, q, sc);
+      mTrunk.setMatrixAt(i, m);
+      mTier.setMatrixAt(i, m);
+      mCap.setMatrixAt(i, m);
+      mTier.setColorAt(i, greens[i % greens.length]);
+    });
+    for (const im of [mTrunk, mTier, mCap]) {
+      im.castShadow = im !== mCap; // snön på grenarna behöver ingen egen skugga
+      im.receiveShadow = false;
+      im.computeBoundingSphere();
+      scene.add(im);
+    }
   }
 
   const flags = buildStadium(scene, course);
   const animateCrowd = buildStadiumDetails(scene, course);
-  return { terrain, flags, animateCrowd };
+  const setClock = buildPortals(scene, course);
+  return { terrain, flags, animateCrowd, setClock };
 }
 
 function buildStadium(scene, course) {
@@ -175,23 +188,7 @@ function buildStadium(scene, course) {
   const [tx, tz] = course.tangentAt(0);
   const yaw = Math.atan2(tx, tz);
 
-  // Start/mål-portal
-  const post = new THREE.MeshStandardMaterial({ color: 0x1d4f91, roughness: 0.6 });
-  const banner = new THREE.MeshStandardMaterial({ color: 0xffd23f, roughness: 0.5 });
-  const g = new THREE.Group();
-  for (const s of [-5, 5]) {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(0.5, 5, 0.5), post);
-    m.position.set(s, 2.5, 0);
-    m.castShadow = true;
-    g.add(m);
-  }
-  const top = new THREE.Mesh(new THREE.BoxGeometry(10.5, 1.1, 0.4), banner);
-  top.position.set(0, 5, 0);
-  top.castShadow = true;
-  g.add(top);
-  g.position.set(sx, y, sz);
-  g.rotation.y = yaw;
-  scene.add(g);
+  // (Start- och målportal, läktare och publik byggs i scenery.js)
 
   // Skjutvall: mattor och tavlor 50 m bort
   const mat = new THREE.MeshStandardMaterial({ color: 0x3b6e3b, roughness: 1 });
@@ -224,13 +221,6 @@ function buildStadium(scene, course) {
   berm.position.set(rx + nx * 55, y + 1.2, rz + nz * 55);
   berm.rotation.y = yaw;
   scene.add(berm);
-  // Läktare
-  const stand = new THREE.Mesh(new THREE.BoxGeometry(40, 6, 8),
-    new THREE.MeshStandardMaterial({ color: 0x8a96a3, roughness: 0.8 }));
-  stand.position.set(sx - nx * 75, y + 3, sz - nz * 75);
-  stand.rotation.y = yaw;
-  stand.castShadow = true;
-  scene.add(stand);
 
   // Vindflaggor längs vallen (vid mattorna och vid tavlorna)
   const flags = [];
@@ -416,6 +406,19 @@ export function animateSkier(sk, dt, push, side, v, grade, mode = 'ski') {
   sk.body.position.x = 0;
   sk.body.rotation.z = 0;
   const crouch = mode === 'prone' ? 0 : 1;
+  if (mode === 'fall') {
+    // t: 0 → FALL_TIME. Snubblar åt sidan (0–0,35 s), ligger, reser sig (sista 0,6 s)
+    const t = sk.fallT || 0, T = 2.6;
+    const down = t < 0.35 ? t / 0.35 : t > T - 0.6 ? Math.max(0, (T - t) / 0.6) : 1;
+    const e = down * down * (3 - 2 * down);
+    sk.body.rotation.set(0.25 * e, 0, 1.42 * e * (sk.fallSide || 1));
+    sk.body.position.set(0, 0.16 * e, 0); // kroppen roterar kring fötterna och hamnar liggande på snön
+    sk.torso.rotation.set(0.3 * e, 0, 0);
+    for (const a of sk.arms) { a.sh.rotation.set(-0.6 - e * 1.2, 0, a.side * 0.5 * e); a.el.rotation.x = -0.5; }
+    for (const l of sk.legs) { l.hip.rotation.set(-0.3 * e, l.side * 0.3 * e, l.side * 0.2 * e); l.knee.rotation.x = 0.6 * e; }
+    levelSkis(sk);
+    return;
+  }
   if (mode === 'cheer' || mode === 'standstill') {
     const cheer = mode === 'cheer';
     const t = sk.phase;
@@ -472,7 +475,7 @@ export function animateSkier(sk, dt, push, side, v, grade, mode = 'ski') {
   const vAngle = skate ? 0.28 + Math.max(0, grade) * 1.2 : 0.02;
   for (const l of sk.legs) {
     const active = l.side === side;
-    l.hip.rotation.y = -l.side * vAngle;
+    l.hip.rotation.y = l.side * vAngle; // skärsteg: spetsarna utåt (V)
     l.hip.rotation.z = l.side * (active ? 0.18 * p : 0.04);
     l.hip.rotation.x = -0.25 - (active ? 0 : p * 0.2);
     l.knee.rotation.x = 0.45 + (active ? p * 0.25 : 0);

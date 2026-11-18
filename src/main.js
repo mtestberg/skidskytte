@@ -1,8 +1,9 @@
 import * as THREE from 'three';
-import { Course, loadCourseData, LAP_LEN, LAPS, PENALTY_LEN, TIME_SCALE } from './course.js';
+import { Course, loadCourseData, LAP_LEN, LAPS, PENALTY_LEN, TIME_SCALE, FINISH_LEN } from './course.js';
 import { Skiing } from './skiing.js';
 import { Shooting } from './shooting.js';
 import { buildWorld, buildSkier, animateSkier, updateFlags, SUN_DIR } from './world.js';
+import { createSnow } from './scenery.js';
 import { drawPendulum, Minimap, Profile, drawFlag, fmtTime } from './hud.js';
 import { Wind } from './wind.js';
 import { connect } from './net.js';
@@ -56,6 +57,7 @@ scene.add(skier.root);
 
 const minimap = new Minimap($('minimap'), course);
 const ceremony = new Ceremony(scene, course);
+const snow = createSnow(scene);
 const profile = new Profile($('profile'), course);
 
 function resize() {
@@ -77,6 +79,11 @@ window.addEventListener('resize', resize);
 const ski = new Skiing();
 ski.onPush = (power) => { if (opts.sound) sfx.polePlant(power); };
 ski.onBeat = () => { if (opts.sound && state === 'ski') sfx.tick(); };
+ski.onFall = () => {
+  skier.fallSide = Math.random() < 0.5 ? -1 : 1;
+  if (opts.sound) sfx.fall();
+  banner('Vurpa!', 'Tre tag i rad utanför pendeln – res dig och börja om', 1.6);
+};
 
 let state = 'menu'; // menu | lobby | countdown | ski | arrive | range | penalty | done | ceremony
 let countdown = 0;
@@ -109,7 +116,7 @@ function newRace(countSeconds = 3, seed = null) {
   ski.reset();
   ski.assistAllowed = true;
   wind = new Wind(seed == null ? Math.random : seeded(seed));
-  race = { lap: 1, s: 0, time: 0, penaltyLeft: 0, penaltyDist: 0, misses: [], splits: [], shootTime: [], shootStart: 0 };
+  race = { lap: 1, s: 0, time: 0, penaltyLeft: 0, penaltyDist: 0, onStraight: false, finishDist: 0, misses: [], splits: [], shootTime: [], shootStart: 0 };
   state = 'countdown';
   countdown = countSeconds - 0.001;
   recorder = new GhostRecorder();
@@ -150,7 +157,7 @@ function tickCountdown(dt) {
       ski.restart();
       banner('KÖR!', '', 1.0);
       $('banner').classList.add('count');
-      if (opts.sound) sfx.beep(true);
+      if (opts.sound) { sfx.beep(true); sfx.cheer(0.6, 2); }
     }
   }
 }
@@ -227,11 +234,16 @@ function nextLap() {
   race.lap++;
   race.s = 0;
   state = 'ski';
+  if (race.lap === LAPS) {
+    banner('Sista varvet!', '', 1.6);
+    if (opts.sound) { sfx.bell(); sfx.cheer(0.6, 2); }
+  }
 }
 
 function finish() {
   race.splits.push({ label: 'Mål', t: race.time });
   state = 'done';
+  if (opts.sound) sfx.cheer(1.3, 4);
   const total = race.time;
   const misses = race.misses.reduce((a, b) => a + b, 0);
   const best = store.get('best', null);
@@ -253,7 +265,7 @@ async function submitResult(time, misses, isBest) {
   const ghostStr = recorder ? recorder.encode() : '';
   if (isBest && ghostStr) store.set('ghost', { time, g: ghostStr });
   if (mode === 'mp' && room) {
-    room.sendResult({ time, misses, raceId, progress: LAPS * LAP_LEN });
+    room.sendResult({ time, misses, raceId, progress: LAPS * LAP_LEN + FINISH_LEN });
     renderWait();
   }
   if (!db) return;
@@ -302,11 +314,16 @@ async function loadGhosts() {
 function myProgress() {
   if (!race) return 0;
   if (state === 'arrive' || state === 'range' || state === 'penalty') return race.lap * LAP_LEN;
-  if (state === 'done' || state === 'ceremony') return LAPS * LAP_LEN;
+  if (state === 'done' || state === 'ceremony') return LAPS * LAP_LEN + FINISH_LEN;
+  if (race.onStraight) return LAPS * LAP_LEN + race.finishDist;
   return (race.lap - 1) * LAP_LEN + race.s;
 }
+// Extra avstånd som skickas med läget: meter på straffrundan eller upploppsrakan
+function mySubDist() {
+  return state === 'penalty' ? race.penaltyDist : race?.onStraight ? race.finishDist : 0;
+}
 function myStCode() {
-  return state === 'penalty' ? 'p' : state === 'arrive' || state === 'range' ? 'r' : state === 'done' ? 'f' : 's';
+  return state === 'penalty' ? 'p' : state === 'arrive' || state === 'range' ? 'r' : state === 'done' ? 'f' : race?.onStraight ? 'm' : 's';
 }
 
 // Övriga deltagare: andra i rummet, eller spöken i träning
@@ -329,6 +346,7 @@ function competitors() {
 
 function posOf(c) {
   if (c.st === 'p') { const p = course.penaltyPoint(c.pd); return { x: p[0], z: p[2] }; }
+  if (c.st === 'm') { const p = course.finishPoint(c.pd); return { x: p[0], z: p[2] }; }
   if (c.st === 'r') return { x: course.rangePos[0], z: course.rangePos[1] };
   if (c.st === 'f' || c.done) return { x: course.stadium[0], z: course.stadium[1] };
   const p = course.pointAt(c.progress % LAP_LEN);
@@ -480,22 +498,35 @@ function update(dt) {
   if (state === 'countdown') { tickCountdown(dt); return; }
   if (state === 'ceremony') return;
   race.time += dt;
-  if (recorder) recorder.sample(race.time, myProgress(), myStCode(), race.penaltyDist);
+  if (recorder) recorder.sample(race.time, myProgress(), myStCode(), mySubDist());
   if (mode === 'mp' && room) {
     liveTimer += dt;
     if (liveTimer > 0.25) {
       liveTimer = 0;
-      room.sendLive({ p: Math.round(myProgress()), st: myStCode(), pd: Math.round(race.penaltyDist) });
+      room.sendLive({ p: Math.round(myProgress()), st: myStCode(), pd: Math.round(mySubDist()) });
     }
   }
 
   if (state === 'ski') {
-    const grade = course.gradeAt(race.s);
+    const grade = race.onStraight ? 0 : course.gradeAt(race.s);
     ski.update(dt, grade);
-    race.s += ski.v * dt * TIME_SCALE;
-    if (race.s >= LAP_LEN) {
-      if (race.lap < LAPS) { race.s = LAP_LEN; enterRange(); }
-      else { race.s = LAP_LEN; finish(); }
+    const ds = ski.v * dt * TIME_SCALE;
+    if (race.onStraight) {
+      race.finishDist += ds;
+      if (race.finishDist >= FINISH_LEN) { race.finishDist = FINISH_LEN; finish(); }
+    } else {
+      race.s += ds;
+      if (race.s >= LAP_LEN) {
+        if (race.lap < LAPS) { race.s = LAP_LEN; enterRange(); }
+        else {
+          // Sista varvet: in på upploppsrakan mot målportalen
+          race.s = LAP_LEN;
+          race.onStraight = true;
+          race.finishDist = 0;
+          banner('Upploppet!', `${FINISH_LEN} m kvar – spurta!`, 1.6);
+          if (opts.sound) sfx.cheer(1, 3);
+        }
+      }
     }
   } else if (state === 'penalty') {
     ski.update(dt, 0);
@@ -521,8 +552,11 @@ function update(dt) {
     }
     for (const ev of shooting.events) {
       if (!opts.sound) continue;
-      if (ev === 'hit') { sfx.shot(); sfx.hit(); }
-      else if (ev === 'miss') { sfx.shot(); sfx.miss(); }
+      if (ev === 'hit') {
+        sfx.shot(); sfx.hit();
+        const full = shooting.targets.every((t) => t.hit);
+        setTimeout(() => sfx.cheer(full ? 1.2 : 0.45, full ? 3.2 : 1.3), 180);
+      } else if (ev === 'miss') { sfx.shot(); sfx.miss(); setTimeout(sfx.ooh, 200); }
       else if (ev === 'inhale') sfx.inhale();
       else if (ev === 'exhale') sfx.exhale();
       else if (ev === 'gasp') sfx.gasp();
@@ -546,6 +580,9 @@ function placeSkier(dt) {
   if (state === 'penalty') {
     [x, y, z] = course.penaltyPoint(race.penaltyDist);
     [tx, tz] = course.penaltyTangent(race.penaltyDist);
+  } else if (race?.onStraight && (state === 'ski' || state === 'done')) {
+    [x, y, z] = course.finishPoint(race.finishDist);
+    [tx, tz] = course.finishDir;
   } else if (state === 'arrive' || state === 'range' || (state === 'done')) {
     if (state === 'done') {
       [x, y, z] = course.pointAt(0);
@@ -563,12 +600,13 @@ function placeSkier(dt) {
   }
   skier.root.position.set(x, y, z);
   skier.root.rotation.y = Math.atan2(tx, tz);
-  const grade = state === 'ski' ? course.gradeAt(race.s) : 0;
+  const grade = state === 'ski' && !race.onStraight ? course.gradeAt(race.s) : 0;
+  if (ski.fallen > 0 && (state === 'ski' || state === 'penalty')) { mode = 'fall'; skier.fallT = 2.6 - ski.fallen; }
   animateSkier(skier, dt, ski.pushAnim, ski.pushSide, state === 'menu' || state === 'lobby' ? 0 : ski.v, grade, mode);
 
   // Kamera bakom och ovanför
-  const back = mode === 'ski' ? 4.3 : 5;
-  const up = mode === 'ski' ? 2.0 : 1.8;
+  const back = mode === 'ski' ? 3.5 : 4.2;
+  const up = mode === 'ski' ? 1.65 : 1.6;
   tmpV.set(x - tx * back, y + up, z - tz * back);
   const look = new THREE.Vector3(x + tx * 4, y + 1.2, z + tz * 4);
   if (state === 'menu' || state === 'lobby') {
@@ -595,7 +633,9 @@ function updateHud() {
   $('s-time').textContent = t;
   let dist;
   if (state === 'penalty') dist = `Straffrunda: ${Math.max(0, Math.ceil(race.penaltyLeft))} m`;
-  else dist = `${Math.max(0, Math.ceil(LAP_LEN - race.s))} m till ${race.lap < LAPS ? 'vallen' : 'mål'}`;
+  else if (race.onStraight) dist = `${Math.max(0, Math.ceil(FINISH_LEN - race.finishDist))} m till mål`;
+  else if (race.lap < LAPS) dist = `${Math.max(0, Math.ceil(LAP_LEN - race.s))} m till vallen`;
+  else dist = `${Math.max(0, Math.ceil(LAP_LEN - race.s + FINISH_LEN))} m till mål`;
   $('h-dist').textContent = dist;
   const bpm = Math.round(ski.pulse);
   $('h-bpm').textContent = bpm;
@@ -624,12 +664,29 @@ function renderShots() {
 }
 
 let last = performance.now();
+// Glidljud efter fart, publikens sorl efter avstånd till stadion
+function updateAmbience() {
+  if (!opts.sound) return;
+  const skiing = race && (state === 'ski' || state === 'penalty') && ski.fallen <= 0;
+  sfx.setGlide(ski.v, !!skiing);
+  let crowd = 0;
+  if (state === 'arrive' || state === 'range') crowd = 0.8;
+  else if (state === 'done' || state === 'ceremony') crowd = 0.9;
+  else if (race && (skiing || state === 'countdown')) {
+    const p = skier.root.position;
+    const d = Math.hypot(p.x - course.stadium[0], p.z - course.stadium[1]);
+    crowd = Math.max(0, Math.min(1, (260 - d) / 220));
+  }
+  sfx.setCrowd(crowd);
+}
+
 function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
   update(dt);
   updateHud();
+  updateAmbience();
 
   if (state === 'range') {
     const c = $('scope');
@@ -659,6 +716,7 @@ function frame(now) {
     drawPendulum(c.getContext('2d'), c.width, c.height, ski);
     let mx, mz;
     if (state === 'penalty') { const p = course.penaltyPoint(race.penaltyDist); mx = p[0]; mz = p[2]; }
+    else if (race.onStraight) { const p = course.finishPoint(race.finishDist); mx = p[0]; mz = p[2]; }
     else { const p = course.pointAt(race.s); mx = p[0]; mz = p[2]; }
     minimap.draw({ x: mx, z: mz }, dots, `Varv ${race.lap}/${LAPS}`);
     profile.draw(state === 'penalty' ? course.n : race.s, race.lap < LAPS);
@@ -667,6 +725,8 @@ function frame(now) {
   }
   updateFlags(world.flags, race ? wind.at(race.time) : wind.at(now / 1000), now / 1000);
   world.animateCrowd(now / 1000);
+  world.setClock(race && state !== 'menu' && state !== 'lobby' ? fmtTime(race.time) : '0:00.0');
+  snow(camera, dt, race ? wind.at(race.time) : 0);
   renderer.render(scene, camera);
 }
 
@@ -824,7 +884,7 @@ requestAnimationFrame(frame);
 window.__game = {
   get state() { return state; }, get race() { return race; }, ski, course, get shooting() { return shooting; },
   get room() { return room; }, get db() { return db; }, get ghosts() { return ghosts; }, me,
-  ceremony, camera, useLocalDb: async () => { const m = await import('./net.js'); db = await m.connectLocal(); },
+  ceremony, camera, renderer, useLocalDb: async () => { const m = await import('./net.js'); db = await m.connectLocal(); },
   step: (dt) => update(dt), start: newRace,
   debugCeremony: (list) => { state = 'ceremony'; ceremony.start(list); showUI(); },
 };

@@ -18,6 +18,7 @@ const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 export const PULSE_MIN = 55;
 export const PULSE_MAX = 200;
 export const ENERGY_MAX = 100;
+export const FALL_TIME = 2.6; // sekunder
 
 export class Skiing {
   constructor() {
@@ -48,6 +49,9 @@ export class Skiing {
     this.stats = { beats: 0, perfect: 0, pushes: 0, wild: 0 };
     this.assist = 3;       // de första tagen från stillastående har nästan hela pendeln som träffzon
     this.assistAllowed = true; // av under straffrundan
+    this.wildStreak = 0;   // tryck utanför pendeln i rad
+    this.fallen = 0;       // sekunder kvar av vurpan
+    this.onFall = null;
   }
 
   period(grade) {
@@ -70,15 +74,20 @@ export class Skiing {
   }
 
   press(which) {
+    if (this.fallen > 0) return; // ligger i snön
     const t = this.now;
     if (!this.resolved && t - this.lastBeat <= this.W && this.cur[which] == null) {
       this.cur[which] = t - this.lastBeat;
+      this.wildStreak = 0;
       return;
     }
     if (this.nextBeat - t <= this.W && this.nxt[which] == null) {
       this.nxt[which] = t - this.nextBeat;
+      this.wildStreak = 0;
       return;
     }
+    // Tre tryck i rad utanför pendeln → vurpa
+    if (++this.wildStreak >= 3) { this.fall(); return; }
     // Ur takt
     this.nextBeat += 0.2 * this.T;
     this.pulse = Math.min(PULSE_MAX, this.pulse + 3 * this.pulseGain());
@@ -157,7 +166,25 @@ export class Skiing {
     if (this.onPush) this.onPush(power);
   }
 
+  // Åkaren ramlar: ligger kvar en stund, reser sig och börjar om från noll fart
+  fall() {
+    this.wildStreak = 0;
+    this.fallen = FALL_TIME;
+    this.pulse = Math.min(PULSE_MAX, this.pulse + 6);
+    this.spend(1.5);
+    this.fb('Vurpa!', 'bad');
+    if (this.onFall) this.onFall();
+  }
+
   update(dt, grade) {
+    if (this.fallen > 0) {
+      this.now += dt;
+      this.fallen -= dt;
+      this.v = Math.max(0, this.v - 9 * dt);
+      this.pushAnim = 0;
+      if (this.fallen <= 0) { this.fallen = 0; this.v = 0; this.restart(); }
+      return;
+    }
     this.now += dt;
     this.grade = grade;
     this.T = this.period(grade);

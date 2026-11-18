@@ -165,5 +165,12 @@ Till steg 3 (multiplayer)
 
 - **Steg 2 klart 2026-11-18**: `data/course.json` = egen 2 km-slinga i dalen vid Le Grand-Bornand (förslag 5 av 5 från `draw-loop.mjs --seed 5`), riktig terräng 1,6 × 1,6 km från Copernicus (utjämnad mot hus/träd). Stadion på 920 m ö.h., stigning ca 64 m per varv. Efter Majas önskemål byggd med `--maxgrade 0.15`: brantast ±15 % (förut +21 %). Simulerat: perfekt ≈ 3:15, bra ≈ 3:35 (samma nivå som den procedurella banan). Andra förslag kan tas fram med andra `--seed`.
 - **Steg 4, grafik omgång 1 (2026-11-18)**: åkare med nummerlapp, randig overall, mössa med pannband, solglasögon, böjda skidor med bindning, stavar med grepp och trissa, gevär med stock/pipa och sele; viktöverföring i skärsteget. Omgivning: pistat spår (manchesterränder, klassiska spår), röda/blå markeringspinnar, sten i branta sluttningar, smala snöiga granar med färgvariation, sol i himlen, banderoller och hoppande publik längs staketen vid stadion och på läktaren (allt instansierat, `src/scenery.js`).
-- Nästa: fler finputs (ljud, balansering, grafik) efter Majas önskemål.
+- **Finputs omgång 2 (2026-11-18), Majas lista:**
+  1. Pendeln har färgband: orange = tidigt/sent, gulgrön = bra, grön = perfekt (bredder enligt tidsgränserna i `skiing.js`); under starthjälpen är hela zonen grön.
+  2. **Vurpa**: 3 tryck i rad utanför pendeln → åkaren ramlar (2,6 s), reser sig och börjar om från noll fart (med starthjälp). Kostar lite energi och puls.
+  3. Skidorna i V med spetsarna **utåt** i skärsteget; kameran närmare åkaren.
+  4. Ljud: tydligare stavisättning varje tag, glidljud efter fart, publikens sorl efter avstånd till stadion, jubel vid träff (stort vid fullt), "ååh" vid miss, varvklocka inför sista varvet, jubel vid start, upplopp och målgång.
+  5. Grafik: läktare med 7 trappsteg, säten och tak längs upploppet med publik; publik med flaggor (SE, FR, NO, DE, IT) som viftar; START- och MÅL-portal (målportalen har klocka); lätt snöfall; skogen uppdelad i rutor för bättre prestanda.
+  6. **Upploppsraka**: efter sista varvet fortsätter man 200 m rakt fram från stadion till målportalen (`FINISH_LEN`, läge 'm' i live/spöken).
+- Nästa: Majas test → fler finputs.
 - Testhake: `window.__game.step(dt)` kör spelet utan rendering (används för automatiska lopp i headless Chrome).

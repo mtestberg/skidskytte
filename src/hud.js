@@ -11,14 +11,30 @@ export function drawPendulum(ctx, W, H, ski) {
   ctx.beginPath();
   ctx.arc(cx, py, L, Math.PI / 2 - maxA, Math.PI / 2 + maxA);
   ctx.stroke();
-  // Träffzonens bredd motsvarar tidsfönstret
+  // Träffzon i färgband: tidigt/sent (orange) → bra (gulgrön) → perfekt (grön).
+  // Bredderna motsvarar tidsgränserna i skiing.js (perfekt ≈ ±18 %, bra ≈ ±40 % av fönstret).
   const span = ski.nextBeat - ski.lastBeat || 1;
-  const zoneA = Math.max(0.05, Math.sin((Math.PI * ski.W) / span) * maxA);
+  const toA = (t) => Math.max(0.03, Math.sin(Math.min(Math.PI / 2, (Math.PI * t) / span)) * maxA);
   const near = ski.nearness();
-  ctx.strokeStyle = `rgba(${Math.round(80 + 175 * near)},${Math.round(220)},${Math.round(120)},${0.55 + 0.45 * near})`;
-  ctx.lineWidth = 14;
+  const glow = 0.7 + 0.3 * near;
+  const bands = ski.assist > 0
+    ? [[ski.W, `rgba(80,235,120,${glow})`]]                 // starthjälp: hela zonen perfekt
+    : [[ski.W, `rgba(255,150,60,${glow})`], [ski.W * 0.4, `rgba(205,235,90,${glow})`], [ski.W * 0.18, `rgba(70,240,120,${glow})`]];
+  ctx.lineCap = 'butt';
+  bands.forEach(([t, col], i) => {
+    const z = toA(t);
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 14 + i * 2;
+    ctx.beginPath();
+    ctx.arc(cx, py, L, Math.PI / 2 - z, Math.PI / 2 + z);
+    ctx.stroke();
+  });
+  ctx.lineCap = 'round';
+  // mittstreck
+  ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+  ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.arc(cx, py, L, Math.PI / 2 - zoneA, Math.PI / 2 + zoneA);
+  ctx.moveTo(cx, py + L - 11); ctx.lineTo(cx, py + L + 11);
   ctx.stroke();
 
   // Pendeln
@@ -90,6 +106,16 @@ export class Minimap {
     }
     ctx.closePath();
     ctx.stroke();
+    // Upploppsrakan
+    if (course.finishPoint) {
+      const a = course.finishPoint(0), b = course.finishPoint(200);
+      const [ax, az] = this.map(a[0], a[2]), [bx, bz] = this.map(b[0], b[2]);
+      ctx.strokeStyle = 'rgba(255,210,63,0.9)';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.moveTo(ax, az); ctx.lineTo(bx, bz); ctx.stroke();
+      ctx.fillStyle = '#d8312f';
+      ctx.fillRect(bx - 3, bz - 3, 6, 6);
+    }
     // Stadion
     const [sx, sz] = this.map(course.stadium[0], course.stadium[1]);
     ctx.fillStyle = '#ffd23f';
