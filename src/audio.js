@@ -136,18 +136,7 @@ function ensureLoops() {
   if (!ac || loops) return loops;
   // Glid: skidorna mot snön
   const glide = loopNoise('bandpass', 1100, 0.6);
-  // Publik: ett svagt sorl-golv (brus) – själva rösterna kommer från voice() nedan
-  const crowdA = loopNoise('bandpass', 420, 0.8);
-  const crowdB = loopNoise('bandpass', 1000, 1.1);
-  for (const [node, fq, depth] of [[crowdA, 0.17, 0.3], [crowdB, 0.31, 0.4]]) {
-    node.mod.gain.value = 1 - depth;
-    const lfo = ac.createOscillator();
-    const lg = ac.createGain();
-    lfo.frequency.value = fq; lg.gain.value = depth;
-    lfo.connect(lg).connect(node.mod.gain);
-    lfo.start();
-  }
-  loops = { glide, crowdA, crowdB };
+  loops = { glide };
   return loops;
 }
 
@@ -284,31 +273,10 @@ function setMurmur(level) {
   return true;
 }
 
-// level 0…1: inspelat sorl om det finns, annars syntetiskt (brusgolv + babbel + klapp/visslingar)
-let crowdLevel = 0, lastBabble = 0;
+// level 0…1: inspelat stadionsorl (assets/sfx/crowd.mp3). Inget syntetiskt sorl.
 export function setCrowd(level) {
-  if (!ensureLoops()) return;
-  crowdLevel = level;
-  if (setMurmur(level)) {
-    ramp(loops.crowdA.g.gain, 0, 0.5);
-    ramp(loops.crowdB.g.gain, 0, 0.5);
-    return;
-  }
-  ramp(loops.crowdA.g.gain, level * 0.07, 0.5);
-  ramp(loops.crowdB.g.gain, level * 0.035, 0.5);
-  const now = ac.currentTime;
-  const dt = Math.min(0.1, now - lastBabble);
-  lastBabble = now;
-  if (level <= 0.02) return;
-  // babbel: korta stavelser från olika röster
-  const expected = level * 9 * dt;
-  let n = Math.floor(expected) + (Math.random() < expected % 1 ? 1 : 0);
-  while (n-- > 0) {
-    const vow = ['a', 'e', 'o', 'i'][Math.floor(Math.random() * 4)];
-    voice(Math.random() * 0.05, 0.12 + Math.random() * 0.3, randVoicePitch(), vow, 0.05 * level, 0.9 + Math.random() * 0.25, Math.random() * 1.6 - 0.8);
-  }
-  if (Math.random() < level * 0.6 * dt) claps(0, 0.8, 10, 0.15 * level);
-  if (Math.random() < level * 0.08 * dt) whistle(0);
+  if (!ac) return;
+  setMurmur(level);
 }
 
 // Jubel: inspelad publik om den finns (kortas/tonas efter dur), annars syntetiska röster + applåd
@@ -421,12 +389,4 @@ export function _useContext(ctx) {
   const d = noiseBuf.getChannelData(0);
   for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
   crowdBus = null; loops = null;
-}
-export function _babble(seconds, level = 1) {
-  const n = Math.round(seconds * 9 * level);
-  for (let i = 0; i < n; i++) {
-    const vow = ['a', 'e', 'o', 'i'][Math.floor(Math.random() * 4)];
-    voice(Math.random() * seconds, 0.12 + Math.random() * 0.3, randVoicePitch(), vow, 0.05 * level, 0.9 + Math.random() * 0.25, Math.random() * 1.6 - 0.8);
-  }
-  claps(0, seconds, 4 * level, 0.15 * level);
 }
