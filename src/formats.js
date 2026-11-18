@@ -6,11 +6,11 @@ export const FORMATS = {
     desc: 'liggande, stående · 150 m straffrunda per miss',
   },
   distans: {
-    id: 'distans', name: 'Distans', laps: 5, shoots: ['prone', 'standing', 'prone', 'standing'], penalty: 'time', penaltySec: 60,
+    id: 'distans', name: 'Distans', laps: 5, shoots: ['prone', 'standing', 'prone', 'standing'], penalty: 'time', penaltySec: 60, energyMul: 1.3,
     desc: 'liggande, stående, liggande, stående · 1 straffminut per miss',
   },
   masstart: {
-    id: 'masstart', name: 'Masstart', laps: 5, shoots: ['prone', 'prone', 'standing', 'standing'], penalty: 'loop',
+    id: 'masstart', name: 'Masstart', laps: 5, shoots: ['prone', 'prone', 'standing', 'standing'], penalty: 'loop', energyMul: 1.2,
     desc: '2 × liggande, 2 × stående · straffrunda · alla startar samtidigt',
   },
 };

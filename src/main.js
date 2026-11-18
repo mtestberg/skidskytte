@@ -1,19 +1,19 @@
 import * as THREE from 'three';
-import { Course, loadCourseData, LAP_LEN, LAPS, PENALTY_LEN, TIME_SCALE, FINISH_LEN, JOIN_S } from './course.js?v=202611182028';
-import { Skiing } from './skiing.js?v=202611182028';
-import { Shooting, AIM_LIMIT } from './shooting.js?v=202611182028';
-import { buildWorld, buildSkier, animateSkier, updateFlags, SUN_DIR } from './world.js?v=202611182028';
-import { createSnow } from './scenery.js?v=202611182028';
-import { drawPendulum, Minimap, Profile, drawFlag, fmtTime } from './hud.js?v=202611182028';
-import { Wind } from './wind.js?v=202611182028';
-import { connect } from './net.js?v=202611182028';
-import { Room, makeCode, makeId, standings, GhostRecorder, decodeGhost, ghostAt, COLOR_CSS } from './mp.js?v=202611182028';
-import { Ceremony } from './ceremony.js?v=202611182028';
-import { FORMATS, FORMAT_IDS, getFormat, boardPath, storeKey, kmText } from './formats.js?v=202611182028';
-import { COURSES, COURSE_IDS, getCourse } from './courses.js?v=202611182028';
-import { Rivals } from './rivals.js?v=202611182028';
+import { Course, loadCourseData, LAP_LEN, LAPS, PENALTY_LEN, TIME_SCALE, FINISH_LEN, JOIN_S } from './course.js?v=202611182034';
+import { Skiing } from './skiing.js?v=202611182034';
+import { Shooting, AIM_LIMIT } from './shooting.js?v=202611182034';
+import { buildWorld, buildSkier, animateSkier, updateFlags, SUN_DIR } from './world.js?v=202611182034';
+import { createSnow } from './scenery.js?v=202611182034';
+import { drawPendulum, Minimap, Profile, drawFlag, fmtTime } from './hud.js?v=202611182034';
+import { Wind } from './wind.js?v=202611182034';
+import { connect } from './net.js?v=202611182034';
+import { Room, makeCode, makeId, standings, GhostRecorder, decodeGhost, ghostAt, COLOR_CSS } from './mp.js?v=202611182034';
+import { Ceremony } from './ceremony.js?v=202611182034';
+import { FORMATS, FORMAT_IDS, getFormat, boardPath, storeKey, kmText } from './formats.js?v=202611182034';
+import { COURSES, COURSE_IDS, getCourse } from './courses.js?v=202611182034';
+import { Rivals } from './rivals.js?v=202611182034';
 import qrcode from '../vendor/qrcode.js';
-import * as sfx from './audio.js?v=202611182028';
+import * as sfx from './audio.js?v=202611182034';
 
 const $ = (id) => document.getElementById(id);
 window.addEventListener('error', (e) => { const el = $('err'); el.textContent = 'Fel: ' + e.message; el.classList.remove('hidden'); });
@@ -147,9 +147,9 @@ function newRace(countSeconds = 3, seed = null) {
   $('ski-ui').classList.remove('sprint');
   race = { lap: 1, s: 0, time: 0, penaltyTime: 0, penaltyLeft: 0, penaltyDist: 0, onStraight: false, finishDist: 0, misses: [], splits: [], shootTime: [], shootStart: 0 };
   rivals.shoots = fmt.shoots;
-  // Energin räcker hela loppet: samma budget per km som sprinten, och lite extra i de
-  // längre grenarna eftersom loppen tar längre tid (pulsen ska inte rasa sista varvet).
-  ski.energyScale = (6000 / (fmt.laps * track.n)) * (fmt.laps > 3 ? 0.8 : 1);
+  // Energin räcker hela loppet: samma budget per km som sprinten, justerad per gren
+  // så att man har ca 10–20 % kvar i mål (Masstart har straffrundor, Distans inte).
+  ski.energyScale = (6000 / (fmt.laps * track.n)) * (fmt.energyMul ?? 1); // ca 10–20 % kvar i mål med bra åkning
   rivals.track = track; // energibudgeten räcker hela loppet oavsett antal varv
   state = 'countdown';
   countdown = countSeconds - 0.001;
@@ -1224,7 +1224,7 @@ requestAnimationFrame(frame);
 window.__game = {
   get state() { return state; }, get race() { return race; }, ski, course, rivals, get shooting() { return shooting; },
   get room() { return room; }, get db() { return db; }, get ghosts() { return ghosts; }, me,
-  ceremony, camera, renderer, useLocalDb: async () => { const m = await import('./net.js?v=202611182028'); db = await m.connectLocal(); },
+  ceremony, camera, renderer, useLocalDb: async () => { const m = await import('./net.js?v=202611182034'); db = await m.connectLocal(); },
   step: (dt) => update(dt), start: newRace,
   debugCeremony: (list) => { state = 'ceremony'; ceremony.start(list); showUI(); },
 };

@@ -213,7 +213,7 @@ Till steg 3 (multiplayer)
   - **Banval** i menyn, i lobbyn (värden väljer, rummet har `course`) och i topplistan. Världen byggs om vid byte (`buildCourse`, allt i en `worldGroup` som tas bort och frigörs). "Dam" borttaget ur rubriken.
   - **Topplistor per bana och gren:** `boards/{bana}_{gren}` (GB Sprint behåller `leaderboard`). Personbästa och spöken per bana och gren. **Nya regler** i `firebase-rules.json` (`boards/$board`) – Maja behöver klistra in dem.
   - **Miljö per bana** (`env`): mängd skog och grönskans färg, hus (chalet i Alperna, röda/gula svenska hus i Östersund) i klungor, barmark (gräs/jord i sydsluttningar), höjd på bergen, mer sten i Antholz, banderoller med banans namn, publikens flaggor viktade efter värdland (FR/IT/AT/SE + grannländer, nya flaggor AT och FI).
-  - **Energi i långa grenar:** budgeten skalas per km och 20 % extra för Distans/Masstart (`energyScale`). Simulerat: kvar efter loppet ca 40–57 % (Sprint ca 12–35 %).
+  - **Energi i långa grenar:** budgeten skalas per km, och per gren (`energyMul` i formats.js: Distans 1,3, Masstart 1,2) så att man har ca 10–20 % kvar i mål (Majas önskemål efter att 40–57 % var för snällt). Simulerat med bra åkning och 14–16/20 träffar: Distans ca 18 %, Masstart ca 9–17 %, Sprint ca 14 %.
 - **Idéer till senare (Maja, 2026-11-18):** "Följ loppet"-vy: gå med i ett rum med koden och välj "bara titta". Kameran följer åkarna snett ovanifrån som en filmkamera och växlar mellan dem (prioriterar skjutvallen och ledaren, sedan tvåan osv.), med karta över var alla är och en topplista som uppdateras live.
 - Nästa: stafett i lag om två, Majas test → fler finputs.
 - Testhake: `window.__game.step(dt)` kör spelet utan rendering (används för automatiska lopp i headless Chrome).
