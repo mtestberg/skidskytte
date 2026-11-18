@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { Course, loadCourseData, LAP_LEN, LAPS, PENALTY_LEN, TIME_SCALE, FINISH_LEN, JOIN_S } from './course.js';
 import { Skiing } from './skiing.js';
-import { Shooting } from './shooting.js';
+import { Shooting, AIM_LIMIT } from './shooting.js';
 import { buildWorld, buildSkier, animateSkier, updateFlags, SUN_DIR } from './world.js';
 import { createSnow } from './scenery.js';
 import { drawPendulum, Minimap, Profile, drawFlag, fmtTime } from './hud.js';
@@ -834,7 +834,10 @@ const skiing = () => state === 'ski' || state === 'penalty' || state === 'transi
 holdButton($('btn-pole'), () => skiing() && ski.press('pole'));
 holdButton($('btn-edge'), () => skiing() && ski.press('edge'));
 holdButton($('btn-breath'), () => shooting && shooting.setHolding(true), () => shooting && shooting.setHolding(false));
-holdButton($('btn-fire'), () => shooting && state === 'range' && shooting.fire());
+// Efter varje skott blir telefonens läge just då det nya neutralläget för gyrot
+// (man håller still när man skjuter), så att en ändrad hållning aldrig gör att siktet drar iväg.
+const gyroRecenter = () => { if (gyroCur) gyroRef = { ...gyroCur }; gyroVel.x = gyroVel.y = 0; };
+holdButton($('btn-fire'), () => { if (shooting && state === 'range') { shooting.fire(); gyroRecenter(); } });
 
 // Sikta genom att dra på kikaren
 const scope = $('scope');
@@ -859,12 +862,14 @@ scope.addEventListener('pointercancel', endDrag);
 
 // Gyro (valbart): lutningen styr siktets FART (som en joystick).
 // Läget när skyttet börjar är neutralt. Luta åt vänster/höger (som en ratt) för att
-// flytta siktet i sidled, luta överkanten bakåt/framåt för höjdled. Rätar man upp
+// flytta siktet i sidled. Höjdled som när man siktar med telefonen: överkanten mot
+// dig = siktet uppåt, överkanten bort från dig = nedåt. Rätar man upp
 // telefonen igen stannar siktet där det är. Lite lutning = långsamt och exakt,
 // mycket lutning = snabbt till nästa tavla.
 let gyroRef = null;               // neutralt läge { roll, pitch }
 const gyroVel = { x: 0, y: 0 };   // mm/s, utjämnat
 let gyroLast = 0;
+let gyroCur = null;               // senaste läget { roll, pitch }
 const GYRO_DEAD = 2.5;            // grader utan rörelse kring neutralläget
 const tiltSpeed = (deg, k, max) => {
   const a = Math.abs(deg) - GYRO_DEAD;
@@ -879,14 +884,15 @@ window.addEventListener('deviceorientation', (e) => {
   if (Math.hypot(ux, uy) < 0.2) return; // telefonen ligger platt: ingen ratt-vinkel
   const roll = Math.atan2(ux, uy) * 180 / Math.PI;   // vridning i skärmens plan (ratt)
   const pitch = Math.asin(Math.max(-1, Math.min(1, uz))) * 180 / Math.PI; // hur mycket skärmen pekar uppåt
+  gyroCur = { roll, pitch };
   if (!gyroRef) { gyroRef = { roll, pitch }; gyroVel.x = gyroVel.y = 0; return; }
   let dr = roll - gyroRef.roll;
   if (dr > 180) dr -= 360;
   if (dr < -180) dr += 360;
   const dp = pitch - gyroRef.pitch;
-  // vänster sida ner (moturs) → siktet åt vänster; överkanten bakåt → siktet uppåt
+  // vänster sida ner (moturs) → siktet åt vänster; överkanten mot dig (skärmen pekar nedåt) → siktet uppåt
   const tx = -tiltSpeed(dr, 14, 520);
-  const ty = -tiltSpeed(dp, 9, 300);
+  const ty = tiltSpeed(dp, 9, 300);
   gyroVel.x += (tx - gyroVel.x) * 0.35;
   gyroVel.y += (ty - gyroVel.y) * 0.35;
   if (Math.abs(tx) < 1e-6) gyroVel.x *= 0.3; // rätar man upp stannar siktet direkt
@@ -911,7 +917,7 @@ window.addEventListener('keydown', (e) => {
     if (e.code === 'Space') { ski.press('pole'); ski.press('edge'); e.preventDefault(); }
   } else if (state === 'range' && shooting) {
     if (e.code === 'Space') { shooting.setHolding(true); e.preventDefault(); }
-    if (e.code === 'Enter') shooting.fire();
+    if (e.code === 'Enter') { shooting.fire(); gyroRecenter(); }
   }
 });
 window.addEventListener('keyup', (e) => {

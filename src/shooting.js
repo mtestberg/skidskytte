@@ -7,6 +7,8 @@ import { WIND_MM_PER_MS } from './wind.js';
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 
 export const TARGET_SPACING = 165;
+// Hur långt från tavlorna siktet kan hamna (mm, + y = nedåt). Startläget ligger 90–150 mm under.
+export const AIM_LIMIT = { x0: -2 * TARGET_SPACING - 110, x1: 2 * TARGET_SPACING + 110, y0: -110, y1: 160 };
 export const PLATE_R = 57.5;
 export const BREATH_MAX = 4;   // sekunder man kan hålla andan
 const BREATH_REFILL = 6;       // sekunder från tom till full
@@ -81,8 +83,9 @@ export class Shooting {
   }
 
   moveAim(dx, dy) {
-    this.aim.x = clamp(this.aim.x + dx, -500, 500);
-    this.aim.y = clamp(this.aim.y + dy, -250, 250);
+    // Siktet hålls kvar i närheten av tavlorna (man kan inte tappa bort sig långt ut)
+    this.aim.x = clamp(this.aim.x + dx, AIM_LIMIT.x0, AIM_LIMIT.x1);
+    this.aim.y = clamp(this.aim.y + dy, AIM_LIMIT.y0, AIM_LIMIT.y1);
   }
 
   fire() {
